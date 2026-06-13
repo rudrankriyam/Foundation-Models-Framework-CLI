@@ -1,27 +1,38 @@
-# Foundation Models Framework CLI
+# Foundation Models Framework CLI (Archived)
+
+> [!IMPORTANT]
+> This repository is archived. Active development of `afm` has moved to
+> [Foundation Models Framework Lab](https://github.com/rudrankriyam/Foundation-Models-Framework-Lab).
+> The CLI source now lives in
+> [`Tools/AFMCLI`](https://github.com/rudrankriyam/Foundation-Models-Framework-Lab/tree/main/Tools/AFMCLI)
+> and continues to ship as the `afm` executable.
 
 `afm` is a native command-line interface for Foundation Models on Apple platforms.
 
 It is built for day-to-day work with Foundation Models: checking model readiness, trying prompts, streaming responses, extracting structured data, validating tool manifests, and exporting artifacts you can keep or automate around.
 
-## Install
+## Migration
 
-Homebrew is the primary install path:
+- Existing commands, schemas, tool manifests, and automation continue to use the `afm` executable.
+- New development and issue reports belong in
+  [Foundation Models Framework Lab](https://github.com/rudrankriyam/Foundation-Models-Framework-Lab/issues).
+- The CLI now shares Foundation Lab's reusable `FoundationLabCore` and `FoundationModelsKit` implementations instead of maintaining a copied runtime.
+- Releases from this standalone repository are frozen. The existing Homebrew formula installs the last standalone release.
+
+To build the current CLI:
+
+```bash
+git clone https://github.com/rudrankriyam/Foundation-Models-Framework-Lab.git
+cd Foundation-Models-Framework-Lab
+swift build -c release --product afm
+.build/release/afm --help
+```
+
+The last standalone Homebrew release remains available:
 
 ```bash
 brew tap rudrankriyam/tap
 brew install afm
-```
-
-Tagged releases update the tap automatically.
-
-If you want to build it yourself:
-
-```bash
-git clone https://github.com/rudrankriyam/Foundation-Models-Framework-CLI.git
-cd Foundation-Models-Framework-CLI
-swift build -c release
-.build/release/afm --help
 ```
 
 To run live model commands, you still need a supported Apple Intelligence Mac. File-based workflows, dry-runs, schema inspection, and tool validation are still useful when the on-device model is unavailable.
@@ -198,10 +209,12 @@ Supported guardrails:
 - Foundation Models concepts like use cases, guardrails, schema prompting, and feedback issues mapped directly into the CLI
 - Validation errors that fail early instead of silently doing the wrong thing
 
-## Local Development
+## Historical Development
 
 ```bash
 swift build
 swift test
 swift run afm --help
 ```
+
+Use the Foundation Models Framework Lab repository for current development.
