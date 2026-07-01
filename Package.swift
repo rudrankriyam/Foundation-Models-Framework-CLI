@@ -11,6 +11,10 @@ let package = Package(
         .executable(
             name: "afm",
             targets: ["AFMCLI"]
+        ),
+        .library(
+            name: "AFMServer",
+            targets: ["AFMServer"]
         )
     ],
     dependencies: [
