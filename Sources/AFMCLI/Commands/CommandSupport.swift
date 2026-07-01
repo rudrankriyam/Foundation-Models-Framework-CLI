@@ -1,6 +1,8 @@
 import ArgumentParser
 import Foundation
+import FoundationModelsKit
 import FoundationModels
+import FoundationModelsKit
 
 struct DryRunPayload: Encodable {
     let status: String = "dry_run"
@@ -136,9 +138,24 @@ struct GenerationFlags: ParsableArguments {
     var maxTokens: Int?
 
     @Option(name: .long, help: "Guardrails mode.")
-    var guardrails: AFMGuardrails = .default
+    var guardrails: FoundationModelGuardrails = .default
 
-    func validatedOptions() throws -> AFMGenerationOptions? {
+    func validatedOptions() throws -> FoundationModelGenerationOptions? {
+        try validateOptionCombinations()
+        let resolvedSampling = resolvedSamplingMode()
+
+        guard resolvedSampling != nil || temperature != nil || maxTokens != nil else {
+            return nil
+        }
+
+        return FoundationModelGenerationOptions(
+            sampling: resolvedSampling,
+            temperature: temperature,
+            maximumResponseTokens: maxTokens
+        )
+    }
+
+    private func validateOptionCombinations() throws {
         if seed != nil && sampling != .topK && sampling != .nucleus {
             throw ValidationError("--seed is only valid with non-greedy sampling")
         }
@@ -160,33 +177,25 @@ struct GenerationFlags: ParsableArguments {
         if sampling != .nucleus, topP != nil {
             throw ValidationError("--top-p is only valid with --sampling nucleus")
         }
-        let resolvedSampling: AFMGenerationOptions.SamplingMode?
+    }
+
+    private func resolvedSamplingMode() -> FoundationModelGenerationOptions.SamplingMode? {
         switch sampling {
         case .greedy:
-            resolvedSampling = .greedy
+            return .greedy
         case .topK:
-            resolvedSampling = .randomTop(topK ?? 50, seed: seed)
+            return .randomTop(topK ?? 50, seed: seed)
         case .nucleus:
-            resolvedSampling = .randomProbabilityThreshold(topP ?? 0.9, seed: seed)
+            return .randomProbabilityThreshold(topP ?? 0.9, seed: seed)
         case .none:
-            resolvedSampling = nil
-        }
-
-        guard resolvedSampling != nil || temperature != nil || maxTokens != nil else {
             return nil
         }
-
-        return AFMGenerationOptions(
-            sampling: resolvedSampling,
-            temperature: temperature,
-            maximumResponseTokens: maxTokens
-        )
     }
 }
 
 struct ModelUseCaseFlags: ParsableArguments {
     @Option(name: .customLong("use-case"), help: "Specialized system model use case.")
-    var useCase: AFMModelUseCase = .general
+    var useCase: FoundationModelUseCase = .general
 }
 
 struct SchemaPromptFlags: ParsableArguments {
@@ -263,17 +272,16 @@ func validatedExportPath(_ path: String, optionName: String = "--file") throws -
     return trimmedPath
 }
 
-func afmContext() -> AFMInvocationContext {
-    AFMInvocationContext(source: .cli, localeIdentifier: Locale.current.identifier)
+func afmContext() -> FoundationModelInvocationContext {
+    FoundationModelInvocationContext(source: .cli, localeIdentifier: Locale.current.identifier)
 }
 
 func defaultConversationConfiguration(
     systemPrompt: String?,
-    useCase: AFMModelUseCase = .general,
-    guardrails: AFMGuardrails = .default,
-    adapterPath: String? = nil,
+    useCase: FoundationModelUseCase = .general,
+    guardrails: FoundationModelGuardrails = .default,
     tools: [any Tool] = []
-) -> AFMConversationConfiguration {
+) -> FoundationModelConversationConfiguration {
     let trimmedSystemPrompt = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
     let baseInstructions: String
 
@@ -283,7 +291,7 @@ func defaultConversationConfiguration(
         baseInstructions = "You are a helpful, concise AI assistant."
     }
 
-    return AFMConversationConfiguration(
+    return FoundationModelConversationConfiguration(
         baseInstructions: baseInstructions,
         summaryInstructions: "You summarize conversations so the assistant can continue naturally.",
         summaryPromptPreamble: "Summarize this conversation so it can continue naturally:",
@@ -292,22 +300,46 @@ func defaultConversationConfiguration(
         continuationNote: "Continue the conversation naturally while preserving prior context.",
         modelUseCase: useCase,
         guardrails: guardrails,
-        adapterPath: adapterPath,
         tools: tools,
         enableSlidingWindow: true,
         defaultMaxContextSize: 4_096
     )
 }
 
-func requireFoundationModelsAvailability(useCase: AFMModelUseCase = .general) throws -> AFMAvailabilityResult {
-    let availability = CheckModelAvailabilityUseCase().execute(useCase: useCase)
+@MainActor
+func makeConversationEngine(
+    configuration: FoundationModelConversationConfiguration,
+    adapterPath: String?
+) throws -> FoundationModelConversationEngine {
+    if let adapterURL = adapterURL(from: adapterPath) {
+        return try FoundationModelConversationEngine(
+            configuration: configuration,
+            adapterURL: adapterURL
+        )
+    }
+
+    return FoundationModelConversationEngine(configuration: configuration)
+}
+
+func adapterURL(from path: String?) -> URL? {
+    path.map { URL(fileURLWithPath: $0) }
+}
+
+func requireFoundationModelsAvailability(
+    useCase: FoundationModelUseCase = .general,
+    adapterPath: String? = nil
+) throws -> FoundationModelAvailability {
+    let availability = try FoundationModelsModelFactory.currentAvailability(
+        useCase: useCase,
+        adapterURL: adapterURL(from: adapterPath)
+    )
     guard availability.isAvailable else {
         throw AFMRuntimeError.unavailableCapability(availabilityReasonDescription(availability))
     }
     return availability
 }
 
-func availabilityReasonDescription(_ availability: AFMAvailabilityResult) -> String {
+func availabilityReasonDescription(_ availability: FoundationModelAvailability) -> String {
     if availability.isAvailable {
         return "Apple Intelligence is available and ready to use."
     }
@@ -324,7 +356,7 @@ func availabilityReasonDescription(_ availability: AFMAvailabilityResult) -> Str
     }
 }
 
-func currentSupportedLanguageDisplayName(from languages: [AFMSupportedLanguageDescriptor]) -> String {
+func currentSupportedLanguageDisplayName(from languages: [FoundationModelSupportedLanguage]) -> String {
     let currentLocale = Locale.autoupdatingCurrent
     let currentLanguageCode = currentLocale.language.languageCode?.identifier
     let currentRegionCode = currentLocale.region?.identifier
@@ -343,8 +375,15 @@ func currentSupportedLanguageDisplayName(from languages: [AFMSupportedLanguageDe
 
 enum HelpText {
     static let root = """
+    RUNTIME COMMANDS
+      available     Inspect system and PCC readiness for the current process.
+      quota-usage   Inspect PCC quota state without inventing numeric usage.
+
     MODEL COMMANDS
       model        Inspect model readiness and supported languages.
+
+    TOKEN COMMANDS
+      token-count  Count prompt context with exact provenance and breakdowns.
 
     TAG COMMANDS
       tag          Try the content tagging system model.
@@ -362,22 +401,38 @@ enum HelpText {
       transcript   Export transcript data from a session flow.
       feedback     Export Foundation Models feedback attachments.
 
+    SERVER COMMANDS
+      serve        Serve local HTTP endpoints over TCP or a Unix-domain socket.
+
+    AGENT BRIDGE COMMANDS
+      bridge       Use a signed Foundation Lab host from agents and automation.
+
     QUICK START
+      afm available
+      afm quota-usage --model pcc
       afm model status
       afm model use-cases
       afm model guardrails
+      afm token-count "What is Swift?"
+      afm token-count -i @instructions.md --prompt @prompt.md --breakdown
       afm session respond --prompt "Summarize Foundation Models in one paragraph."
       afm session respond --adapter ~/MyAdapter.fmadapter --prompt "Rewrite this in my style."
       afm session stream --prompt "Write a short poem about rain"
       afm session chat --message "Hello" --message "Now answer in French."
       afm tag run --prompt "A joyful dog playing in a sunny park."
       afm session respond --prompt @prompt.txt --tool demo-weather
+      afm schema object --name Person --string name --integer age --optional
       afm schema list
       afm schema run typed-person --input "Alex Rivera is a designer in Berlin."
       afm schema run custom --schema demo-person --input @input.txt
       afm tool inspect --tool demo-weather
       afm transcript export --message "Hello" --message "Summarize this conversation." --file transcript.json
       afm feedback export --prompt "What is the capital of France?" --sentiment positive --file feedback.json
+      afm serve
+      afm bridge prepare
+      afm bridge ensure
+      afm bridge status
+      afm bridge chat --model pcc --prompt "Summarize this repository."
     """
 
     static let session = """
@@ -391,13 +446,17 @@ enum HelpText {
 
     static let schema = """
     SCHEMA COMMANDS
+      object      Generate a runnable JSON or YAML schema artifact.
       list        Show available typed and dynamic schema workflows.
       run         Execute one schema workflow.
     """
 }
 
 func suggestRootCommand(for input: String) -> String? {
-    let commands = ["model", "tag", "session", "schema", "tool", "transcript", "feedback", "help", "version"]
+    let commands = [
+        "available", "quota-usage", "model", "token-count", "tag", "session",
+        "schema", "tool", "transcript", "feedback", "serve", "bridge", "help", "version"
+    ]
     return suggestCommand(input, in: commands)
 }
 
@@ -417,13 +476,13 @@ func transcriptPayload(_ transcript: Transcript) -> [CLITranscriptEntry] {
     transcript.compactMap { entry in
         switch entry {
         case .prompt(let prompt):
-            guard let content = prompt.segments.afmJoinedText() else { return nil }
+            guard let content = prompt.segments.joinedTextContent() else { return nil }
             return .init(role: "user", content: content)
         case .response(let response):
-            guard let content = response.segments.afmJoinedText() else { return nil }
+            guard let content = response.segments.joinedTextContent() else { return nil }
             return .init(role: "assistant", content: content)
         case .toolOutput(let toolOutput):
-            guard let content = toolOutput.segments.afmJoinedText() else { return nil }
+            guard let content = toolOutput.segments.joinedTextContent() else { return nil }
             return .init(role: "tool", content: content)
         default:
             return nil

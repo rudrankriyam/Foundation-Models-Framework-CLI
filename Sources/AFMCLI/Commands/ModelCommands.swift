@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import FoundationModelsKit
 
 struct ModelCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -42,7 +43,7 @@ struct ModelStatusCommand: AsyncParsableCommand {
             return
         }
 
-        let availability = CheckModelAvailabilityUseCase().execute(useCase: useCaseFlags.useCase)
+        let availability = FoundationModelAvailabilityUseCase().execute(useCase: useCaseFlags.useCase)
         let payload = ModelStatusPayload(
             status: availability.isAvailable ? "available" : "unavailable",
             isAvailable: availability.isAvailable,
@@ -96,7 +97,7 @@ struct ModelLanguagesCommand: AsyncParsableCommand {
             return
         }
 
-        let result = ListSupportedLanguagesUseCase().execute(useCase: useCaseFlags.useCase, locale: .current)
+        let result = FoundationModelSupportedLanguagesUseCase().execute(useCase: useCaseFlags.useCase, locale: .current)
         let currentLanguage = currentSupportedLanguageDisplayName(from: result.languages)
         let payload = ModelLanguagesPayload(
             useCase: useCaseFlags.useCase.rawValue,
@@ -151,8 +152,11 @@ struct ModelUseCasesCommand: AsyncParsableCommand {
 
         let payload = ModelUseCasesPayload(
             useCases: [
-                .init(id: AFMModelUseCase.general.rawValue, summary: "General-purpose prompting and text generation."),
-                .init(id: AFMModelUseCase.contentTagging.rawValue, summary: "Specialized tagging use case that returns categorizing tags.")
+                .init(id: FoundationModelUseCase.general.rawValue, summary: "General-purpose prompting and text generation."),
+                .init(
+                    id: FoundationModelUseCase.contentTagging.rawValue,
+                    summary: "Specialized tagging use case that returns categorizing tags."
+                )
             ]
         )
         let human = """
@@ -196,8 +200,14 @@ struct ModelGuardrailsCommand: AsyncParsableCommand {
 
         let payload = ModelGuardrailsPayload(
             guardrails: [
-                .init(id: AFMGuardrails.default.rawValue, summary: "Default guardrails that block unsafe content in prompts and responses."),
-                .init(id: AFMGuardrails.permissiveContentTransformations.rawValue, summary: "Permissive transformations for String generation while keeping structured generation strict.")
+                .init(
+                    id: FoundationModelGuardrails.default.afmArgumentValue,
+                    summary: "Default guardrails that block unsafe content in prompts and responses."
+                ),
+                .init(
+                    id: FoundationModelGuardrails.permissiveContentTransformations.afmArgumentValue,
+                    summary: "Permissive transformations for String generation while keeping structured generation strict."
+                )
             ]
         )
         let human = """

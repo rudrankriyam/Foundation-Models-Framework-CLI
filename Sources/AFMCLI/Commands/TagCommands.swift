@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import FoundationModelsKit
 
 struct TagCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -37,7 +38,7 @@ struct TagRunCommand: AsyncParsableCommand {
         let resolvedPrompt = try requiredResolvedInput(promptInput.resolve())
         let resolvedOutput = try options.resolvedOutput()
         let generationOptions = try generation.validatedOptions()
-        let adapterPath = try adapterOptions.resolveAdapterPath()
+        let adapterPath = try adapterOptions.resolveAdapterPath(guardrails: generation.guardrails)
 
         if options.dryRun {
             try CLIOutput.emit(
@@ -46,8 +47,8 @@ struct TagRunCommand: AsyncParsableCommand {
                     adapter: adapterPath,
                     prompt: resolvedPrompt.value,
                     promptFile: resolvedPrompt.file,
-                    useCase: AFMModelUseCase.contentTagging.rawValue,
-                    guardrails: generation.guardrails.rawValue
+                    useCase: FoundationModelUseCase.contentTagging.rawValue,
+                    guardrails: generation.guardrails.afmArgumentValue
                 ),
                 human: "[dry-run] afm tag run\nPrompt: \(resolvedPrompt.value)",
                 options: resolvedOutput
@@ -55,14 +56,17 @@ struct TagRunCommand: AsyncParsableCommand {
             return
         }
 
-        _ = try requireFoundationModelsAvailability(useCase: .contentTagging)
-        let result = try await GenerateTextUseCase().execute(
-            AFMTextGenerationRequest(
+        _ = try requireFoundationModelsAvailability(
+            useCase: .contentTagging,
+            adapterPath: adapterPath
+        )
+        let result = try await FoundationModelTextGenerationUseCase().execute(
+            FoundationModelTextGenerationRequest(
                 prompt: resolvedPrompt.value,
                 systemPrompt: generation.systemPrompt,
                 modelUseCase: .contentTagging,
                 guardrails: generation.guardrails,
-                adapterPath: adapterPath,
+                adapterURL: adapterURL(from: adapterPath),
                 generationOptions: generationOptions,
                 context: afmContext()
             )
@@ -73,8 +77,8 @@ struct TagRunCommand: AsyncParsableCommand {
             command: "tag run",
             adapter: adapterPath,
             prompt: resolvedPrompt.value,
-            useCase: AFMModelUseCase.contentTagging.rawValue,
-            guardrails: generation.guardrails.rawValue,
+            useCase: FoundationModelUseCase.contentTagging.rawValue,
+            guardrails: generation.guardrails.afmArgumentValue,
             response: result.content,
             tags: tags,
             tokenCount: result.metadata.tokenCount

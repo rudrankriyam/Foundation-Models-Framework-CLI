@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import FoundationModelsKit
 import FoundationModels
 
 struct TranscriptCommand: AsyncParsableCommand {
@@ -48,7 +49,7 @@ struct TranscriptExportCommand: AsyncParsableCommand {
         let exportPath = try validatedExportPath(outputFile.file)
         let resolvedOutput = try options.resolvedOutput()
         let generationOptions = try generation.validatedOptions()
-        let adapterPath = try adapterOptions.resolveAdapterPath()
+        let adapterPath = try adapterOptions.resolveAdapterPath(guardrails: generation.guardrails)
         let toolResolution = try resolveToolManifests(toolSource)
 
         if options.dryRun {
@@ -60,7 +61,7 @@ struct TranscriptExportCommand: AsyncParsableCommand {
                     messageFiles: resolvedMessages.compactMap { $0.file },
                     file: exportPath,
                     useCase: useCaseFlags.useCase.rawValue,
-                    guardrails: generation.guardrails.rawValue,
+                    guardrails: generation.guardrails.afmArgumentValue,
                     toolFiles: toolResolution.references.map { $0.filePath },
                     toolDirectory: toolSource.tool.isEmpty ? nil : expandedPathString(toolSource.toolDir)
                 ),
@@ -70,16 +71,19 @@ struct TranscriptExportCommand: AsyncParsableCommand {
             return
         }
 
-        _ = try requireFoundationModelsAvailability(useCase: useCaseFlags.useCase)
+        _ = try requireFoundationModelsAvailability(
+            useCase: useCaseFlags.useCase,
+            adapterPath: adapterPath
+        )
         let engine = try await MainActor.run {
-            try AFMConversationEngine(
+            try makeConversationEngine(
                 configuration: defaultConversationConfiguration(
                     systemPrompt: generation.systemPrompt,
                     useCase: useCaseFlags.useCase,
                     guardrails: generation.guardrails,
-                    adapterPath: adapterPath,
                     tools: toolResolution.tools
-                )
+                ),
+                adapterPath: adapterPath
             )
         }
 
@@ -87,6 +91,24 @@ struct TranscriptExportCommand: AsyncParsableCommand {
             _ = try await engine.sendMessage(entry, generationOptions: generationOptions)
         }
 
+        try await exportTranscript(
+            from: engine,
+            messages: messages,
+            adapterPath: adapterPath,
+            exportPath: exportPath,
+            outputOptions: resolvedOutput
+        )
+    }
+}
+
+private extension TranscriptExportCommand {
+    func exportTranscript(
+        from engine: FoundationModelConversationEngine,
+        messages: [String],
+        adapterPath: String?,
+        exportPath: String,
+        outputOptions: CLIOutputOptions
+    ) async throws {
         let entries = await MainActor.run { transcriptPayload(engine.session.transcript) }
         let sessionCount = await MainActor.run { engine.sessionCount }
         let tokenCount = await MainActor.run { engine.currentTokenCount }
@@ -94,7 +116,7 @@ struct TranscriptExportCommand: AsyncParsableCommand {
             command: "transcript export",
             adapter: adapterPath,
             useCase: useCaseFlags.useCase.rawValue,
-            guardrails: generation.guardrails.rawValue,
+            guardrails: generation.guardrails.afmArgumentValue,
             messages: messages,
             entries: entries.map { entry in
                 ExportedTranscriptPayload.Entry(role: entry.role, content: entry.content)
@@ -119,7 +141,7 @@ struct TranscriptExportCommand: AsyncParsableCommand {
         } else {
             verboseHuman = human
         }
-        try CLIOutput.emit(payload: payload, human: verboseHuman, options: resolvedOutput)
+        try CLIOutput.emit(payload: payload, human: verboseHuman, options: outputOptions)
     }
 }
 
@@ -170,7 +192,7 @@ struct FeedbackExportCommand: AsyncParsableCommand {
         let exportPath = try validatedExportPath(outputFile.file)
         let resolvedOutput = try options.resolvedOutput()
         let generationOptions = try generation.validatedOptions()
-        let adapterPath = try adapterOptions.resolveAdapterPath()
+        let adapterPath = try adapterOptions.resolveAdapterPath(guardrails: generation.guardrails)
         let issues = try issueFlags.resolvedIssues()
 
         if options.dryRun {
@@ -182,7 +204,7 @@ struct FeedbackExportCommand: AsyncParsableCommand {
                     promptFile: resolvedPrompt.file,
                     file: exportPath,
                     useCase: useCaseFlags.useCase.rawValue,
-                    guardrails: generation.guardrails.rawValue,
+                    guardrails: generation.guardrails.afmArgumentValue,
                     feedbackIssues: issueFlags.issue.map(\.rawValue)
                 ),
                 human: "[dry-run] afm feedback export\nFile: \(exportPath)",
@@ -191,11 +213,14 @@ struct FeedbackExportCommand: AsyncParsableCommand {
             return
         }
 
-        _ = try requireFoundationModelsAvailability(useCase: useCaseFlags.useCase)
-        let model = try makeModel(
-            useCase: useCaseFlags.useCase.foundationModelsValue,
-            guardrails: generation.guardrails.foundationModelsValue,
+        _ = try requireFoundationModelsAvailability(
+            useCase: useCaseFlags.useCase,
             adapterPath: adapterPath
+        )
+        let model = try FoundationModelsModelFactory.makeModel(
+            useCase: useCaseFlags.useCase,
+            guardrails: generation.guardrails,
+            adapterURL: adapterURL(from: adapterPath)
         )
         let session = makeFeedbackSession(model: model, systemPrompt: generation.systemPrompt)
         if let generationOptions {
@@ -204,27 +229,48 @@ struct FeedbackExportCommand: AsyncParsableCommand {
             _ = try await session.respond(to: resolvedPrompt.value)
         }
 
-        let desiredEntry: Transcript.Entry?
-        if let desiredOutput, !desiredOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            desiredEntry = Transcript.Entry.response(Transcript.Response(assetIDs: [], segments: [
-                .text(.init(content: desiredOutput))
-            ]))
-        } else {
-            desiredEntry = nil
-        }
-
         let data = session.logFeedbackAttachment(
             sentiment: sentiment?.foundationModelsValue,
             issues: issues,
-            desiredOutput: desiredEntry
+            desiredOutput: desiredFeedbackEntry()
         )
         try writeFileData(data, to: exportPath)
+        try emitFeedbackExport(
+            data: data,
+            resolvedPrompt: resolvedPrompt,
+            adapterPath: adapterPath,
+            exportPath: exportPath,
+            outputOptions: resolvedOutput
+        )
+    }
+}
 
+private extension FeedbackExportCommand {
+    func desiredFeedbackEntry() -> Transcript.Entry? {
+        guard let desiredOutput,
+              !desiredOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return Transcript.Entry.response(
+            Transcript.Response(
+                assetIDs: [],
+                segments: [.text(.init(content: desiredOutput))]
+            )
+        )
+    }
+
+    func emitFeedbackExport(
+        data: Data,
+        resolvedPrompt: ResolvedTextInput,
+        adapterPath: String?,
+        exportPath: String,
+        outputOptions: CLIOutputOptions
+    ) throws {
         let payload = FeedbackExportSummaryPayload(
             command: "feedback export",
             adapter: adapterPath,
             useCase: useCaseFlags.useCase.rawValue,
-            guardrails: generation.guardrails.rawValue,
+            guardrails: generation.guardrails.afmArgumentValue,
             prompt: resolvedPrompt.value,
             sentiment: sentiment?.rawValue,
             issues: issueFlags.issue.map(\.rawValue),
@@ -246,7 +292,7 @@ struct FeedbackExportCommand: AsyncParsableCommand {
         } else {
             verboseHuman = human
         }
-        try CLIOutput.emit(payload: payload, human: verboseHuman, options: resolvedOutput)
+        try CLIOutput.emit(payload: payload, human: verboseHuman, options: outputOptions)
     }
 }
 

@@ -14,13 +14,18 @@ struct AFMRootCommand: AsyncParsableCommand {
         discussion: HelpText.root,
         version: "0.1.0",
         subcommands: [
+            AvailableCommand.self,
+            QuotaUsageCommand.self,
             ModelCommand.self,
+            TokenCountCommand.self,
             TagCommand.self,
             SessionCommand.self,
             SchemaCommand.self,
             ToolCommand.self,
             TranscriptCommand.self,
-            FeedbackCommand.self
+            FeedbackCommand.self,
+            ServeCommand.self,
+            BridgeCommand.self
         ]
     )
 
@@ -39,8 +44,11 @@ struct AFMRootCommand: AsyncParsableCommand {
 
         let payload = RootStatusPayload(
             name: Self.configuration.commandName ?? "afm",
-            summary: "Workflow-first CLI for Foundation Models sessions, schemas, tools, transcripts, and feedback.",
-            commands: ["model", "tag", "session", "schema", "tool", "transcript", "feedback"]
+            summary: "Workflow-first CLI for Foundation Models sessions, schemas, tools, exports, and local services.",
+            commands: [
+                "available", "quota-usage", "model", "token-count", "tag", "session",
+                "schema", "tool", "transcript", "feedback", "serve", "bridge"
+            ]
         )
         let human: String
         if options.verbose {
