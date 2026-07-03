@@ -138,7 +138,7 @@ Bare tool identifiers resolve through `--tool-dir`, which defaults to `.afm/tool
 ```bash
 afm serve
 afm serve --host 127.0.0.1 --port 4815
-afm serve --unix-socket ~/.afm/bridge.sock
+afm serve --socket ~/.afm/bridge.sock
 ```
 
 The server validates request shape, authentication, loopback binding, body limits, tool schemas, structured response formats, streaming, and cancellation paths before model work runs.
