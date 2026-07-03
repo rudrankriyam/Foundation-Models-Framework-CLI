@@ -4,7 +4,7 @@
 
 Use it to check runtime availability, try prompts, stream responses, count tokens, run structured-output flows, validate tools, export transcripts, and serve local chat-compatible endpoints for agents and automation.
 
-The CLI is a standalone package again. The reusable runtime pieces live in [FoundationModelsKit](https://github.com/rryam/FoundationModelsKit), and this repo builds the `afm` developer tool on top of it.
+The CLI is a standalone package. It depends on [FoundationModelsKit](https://github.com/rryam/FoundationModelsKit) for the core Foundation Models helpers, while the server runtime (`AFMServer`) now lives in this repo alongside the `afm` developer tool.
 
 ## Requirements
 

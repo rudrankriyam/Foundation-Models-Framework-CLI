@@ -15,7 +15,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/rryam/FoundationModelsKit.git", exact: "2.0.0"),
+        .package(url: "https://github.com/rryam/FoundationModelsKit.git", from: "2.1.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.0.1")
