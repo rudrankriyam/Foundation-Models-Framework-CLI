@@ -289,6 +289,27 @@ func workbenchDiscoveryEndpoints() throws {
     #expect((tracesJSON["traces"] as? [[String: Any]])?.isEmpty == true)
 }
 
+@Test("Workbench marks stale bridge models unavailable")
+func workbenchStaleBridgeModelsAreUnavailable() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let store = try AFMBridgeDescriptorStore(directoryPath: directory.bridge.path())
+    _ = try store.publish(try makeAFMBridgeTestDescriptor(
+        processIdentifier: Int32.max,
+        modelIdentifiers: ["pcc", "system"]
+    ))
+    let router = testRouter(workbenchDirectory: directory)
+
+    let status = try performRequest(path: "/api/workbench/status", router: router)
+    #expect(status.head.status == .ok)
+    let statusJSON = try jsonObject(status.body)
+    let bridge = try #require(statusJSON["bridge"] as? [String: Any])
+    #expect(bridge["status"] as? String == "stale")
+    let models = try #require(bridge["models"] as? [[String: Any]])
+    #expect(models.map { $0["id"] as? String } == ["pcc", "system"])
+    #expect(models.allSatisfy { $0["available"] as? Bool == false })
+}
+
 @Test("Workbench chat POST requires JSON even when the body is empty")
 func workbenchChatRequiresJSONContentType() throws {
     let directory = try WorkbenchTestDirectory()

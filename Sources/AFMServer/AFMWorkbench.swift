@@ -162,14 +162,15 @@ struct AFMWorkbench: Sendable {
         do {
             let store = try AFMBridgeDescriptorStore(directoryPath: configuration.bridgeDirectory)
             let descriptor = try store.read()
+            let isRunning = processIsRunning(descriptor.processIdentifier)
             return AFMWorkbenchBridgeStatus(
-                status: processIsRunning(descriptor.processIdentifier) ? "running" : "stale",
+                status: isRunning ? "running" : "stale",
                 descriptorPath: descriptorPath,
                 endpoint: displayString(for: descriptor.endpoint),
                 processIdentifier: descriptor.processIdentifier,
                 launchIdentifier: descriptor.launchIdentifier.uuidString,
                 models: descriptor.modelIdentifiers.sorted().map {
-                    AFMWorkbenchBridgeModel(id: $0, available: true)
+                    AFMWorkbenchBridgeModel(id: $0, available: isRunning)
                 },
                 startedAt: descriptor.startedAt,
                 error: nil
