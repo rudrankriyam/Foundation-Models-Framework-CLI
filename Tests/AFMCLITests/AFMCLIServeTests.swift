@@ -52,6 +52,17 @@ func serveWorkbenchDryRun() throws {
     #expect(json["traceDirectory"] as? String == traceDirectory)
 }
 
+@Test("Serve workbench trace directory expands a bare tilde")
+func serveWorkbenchTraceDirectoryExpandsBareTilde() throws {
+    let result = try runAFM(
+        "serve", "--ui", "--trace-dir", "~", "--output", "json", "--dry-run"
+    )
+
+    #expect(result.status == 0)
+    let json = try parseJSONObject(result.stdout)
+    #expect(json["traceDirectory"] as? String == NSHomeDirectory())
+}
+
 @Test("Serve rejects unsafe binding combinations before listening")
 func serveConfigurationValidation() throws {
     let implicitNetwork = try runAFM(

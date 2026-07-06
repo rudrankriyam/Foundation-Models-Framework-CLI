@@ -114,6 +114,29 @@ func bearerAuthentication() throws {
     #expect(valid.head.status == .ok)
 }
 
+@Test("Bearer authentication lets the workbench shell load but protects its APIs")
+func bearerAuthenticationWithWorkbench() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let router = testRouter(token: "correct-token", workbenchDirectory: directory)
+
+    let shell = try performRequest(path: "/", router: router)
+    #expect(shell.head.status == .ok)
+    let html = try #require(String(data: shell.body, encoding: .utf8))
+    #expect(html.contains("afm.workbench.token"))
+    #expect(html.contains("authorization"))
+
+    let statusWithoutToken = try performRequest(path: "/api/workbench/status", router: router)
+    #expect(statusWithoutToken.head.status == .unauthorized)
+
+    let statusWithToken = try performRequest(
+        path: "/api/workbench/status",
+        additionalHeaders: [("authorization", "Bearer correct-token")],
+        router: router
+    )
+    #expect(statusWithToken.head.status == .ok)
+}
+
 @Test("Body and media-type limits produce deterministic JSON errors")
 func bodyAndMediaTypeLimits() throws {
     let limits = AFMServerLimits(maximumBodyBytes: 4)
@@ -279,10 +302,61 @@ func workbenchChatRequiresJSONContentType() throws {
     _ = try? channel.finish()
 }
 
+@Test("Workbench chat preserves non-success upstream status")
+func workbenchChatPreservesUpstreamStatus() async throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let workbench = AFMWorkbench(configuration: .init(traceDirectory: directory.trace.path()))
+    let service = AFMChatCompletionService(
+        catalog: AFMStaticModelCatalog(models: [.init(id: "system", isAvailable: true)]),
+        generator: HandlerTestGenerator(),
+        clock: TestClock(value: 123),
+        policy: .init()
+    )
+    let body = Data(#"{"route":"direct","model":"missing","prompt":"Hello"}"#.utf8)
+
+    let recorder = FixedResponseRecorder()
+    try await workbench.writeChatResponse(
+        body: body,
+        chatCompletions: service
+    ) { emission in
+        if case .fixed(let response) = emission {
+            await recorder.record(response)
+        }
+    }
+
+    let response = try #require(await recorder.response())
+    #expect(response.status == .notFound)
+    let json = try jsonObject(response.body)
+    #expect(json["command"] as? String == "workbench chat")
+    #expect(json["model"] as? String == "missing")
+}
+
 private struct TestClock: AFMServerClock {
     let value: Int64
 
     func unixTime() -> Int64 { value }
+}
+
+private struct HandlerTestGenerator: AFMChatCompletionGenerating {
+    func generate(_ request: AFMChatGenerationRequest) async throws -> AFMChatGenerationResult {
+        .init(
+            content: "Done",
+            usage: .init(inputTokenCount: 1, measurement: .estimated, scope: .response)
+        )
+    }
+}
+
+private actor FixedResponseRecorder {
+    private var storedResponse: AFMHTTPResponse?
+
+    func record(_ response: AFMHTTPResponse) {
+        storedResponse = response
+    }
+
+    func response() -> AFMHTTPResponse? {
+        storedResponse
+    }
 }
 
 private struct TestHTTPResponse {

@@ -169,6 +169,14 @@ afm serve --ui
 open http://127.0.0.1:1976
 ```
 
+If the server uses `--token` or `AFM_SERVER_TOKEN`, open the workbench with the
+token in the URL fragment so the browser can attach bearer headers to local API
+calls without sending the token while loading the HTML shell:
+
+```bash
+open 'http://127.0.0.1:1976/#token=YOUR_TOKEN'
+```
+
 The workbench serves:
 
 - `/` and `/workbench`: a local browser UI for model status, prompt runs, snippets, and traces.

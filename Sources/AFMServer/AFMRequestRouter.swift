@@ -53,6 +53,7 @@ struct AFMRequestRouter: Sendable {
             ))
         }
 
+        let path = request.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? request.uri
         let originResult = validateOrigin(request.headers)
         guard originResult.isAllowed else {
             return .immediate(.apiError(
@@ -62,7 +63,7 @@ struct AFMRequestRouter: Sendable {
             ))
         }
 
-        guard validatesAuthorization(request.headers) else {
+        guard validatesAuthorization(request.headers) || isUnauthenticatedWorkbenchIndex(path) else {
             var headers = HTTPHeaders()
             headers.add(name: "www-authenticate", value: "Bearer")
             return .immediate(AFMHTTPResponse.apiError(
@@ -74,7 +75,6 @@ struct AFMRequestRouter: Sendable {
             ).addingOrigin(originResult.origin))
         }
 
-        let path = request.uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? request.uri
         let route: AFMRequestRoute
         switch path {
         case "/health":
@@ -302,6 +302,11 @@ struct AFMRequestRouter: Sendable {
         let parts = values[0].split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
         guard parts.count == 2, parts[0].lowercased() == "bearer" else { return false }
         return constantTimeEquals(String(parts[1]), expectedToken)
+    }
+
+    private func isUnauthenticatedWorkbenchIndex(_ path: String) -> Bool {
+        guard workbench != nil, configuration.security.bearerToken != nil else { return false }
+        return path == "/" || path == "/workbench" || path == "/index.html"
     }
 
     private func constantTimeEquals(_ provided: String, _ expected: String) -> Bool {

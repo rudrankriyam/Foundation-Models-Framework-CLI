@@ -188,13 +188,8 @@ struct ServeCommand: AsyncParsableCommand {
     private func resolvedWorkbenchConfiguration() -> AFMWorkbenchConfiguration? {
         guard ui else { return nil }
         return AFMWorkbenchConfiguration(
-            traceDirectory: expandedPath(traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory)
+            traceDirectory: expandedPathString(traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory)
         )
-    }
-
-    private func expandedPath(_ path: String) -> String {
-        guard path.hasPrefix("~/") else { return path }
-        return (NSHomeDirectory() as NSString).appendingPathComponent(String(path.dropFirst(2)))
     }
 }
 

@@ -86,7 +86,7 @@ struct AFMWorkbench: Sendable {
                 chatCompletions: chatCompletions,
                 startedAt: startedAt
             )
-            try await emission(.fixed(.json(body: result.payload)))
+            try await emission(.fixed(.json(status: result.status, body: result.payload)))
         } catch {
             let trace = AFMWorkbenchTrace(
                 id: UUID().uuidString,
@@ -1337,10 +1337,34 @@ private enum AFMWorkbenchHTML {
         const originToken = () => location.origin;
 
         async function json(path, options) {
-          const response = await fetch(path, options);
+          const requestOptions = withAuthorization(options || {});
+          const response = await fetch(path, requestOptions);
           const payload = await response.json();
           if (!response.ok) throw new Error(payload?.error?.message || response.statusText);
           return payload;
+        }
+
+        function withAuthorization(options) {
+          const token = workbenchToken();
+          if (!token) return options;
+          return {
+            ...options,
+            headers: {
+              ...(options.headers || {}),
+              authorization: `Bearer ${token}`
+            }
+          };
+        }
+
+        function workbenchToken() {
+          const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+          const hashToken = hash.get("token");
+          if (hashToken) {
+            sessionStorage.setItem("afm.workbench.token", hashToken);
+            history.replaceState(null, "", location.pathname + location.search);
+            return hashToken;
+          }
+          return sessionStorage.getItem("afm.workbench.token") || "";
         }
 
         function row(label, value) {
@@ -1568,7 +1592,7 @@ private enum AFMWorkbenchHTML {
             $("responseNote").textContent = "Request failed.";
             markResponseUpdated();
           } finally {
-            $("run").disabled = false;
+            $("run").disabled = state.selected == null;
           }
         }
 
