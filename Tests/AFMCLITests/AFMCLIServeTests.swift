@@ -52,15 +52,14 @@ func serveWorkbenchDryRun() throws {
     #expect(json["traceDirectory"] as? String == traceDirectory)
 }
 
-@Test("Serve workbench trace directory expands a bare tilde")
-func serveWorkbenchTraceDirectoryExpandsBareTilde() throws {
+@Test("Serve workbench trace directory rejects a bare tilde")
+func serveWorkbenchTraceDirectoryRejectsBareTilde() throws {
     let result = try runAFM(
         "serve", "--ui", "--trace-dir", "~", "--output", "json", "--dry-run"
     )
 
-    #expect(result.status == 0)
-    let json = try parseJSONObject(result.stdout)
-    #expect(json["traceDirectory"] as? String == NSHomeDirectory())
+    #expect(result.status == 64)
+    #expect(result.stderr.contains("--trace-dir must point to a dedicated trace directory"))
 }
 
 @Test("Serve rejects unsafe binding combinations before listening")

@@ -61,7 +61,7 @@ struct ServeCommand: AsyncParsableCommand {
         if options.dryRun {
             let payload = ServeDryRunPayload(
                 configuration: serverConfiguration,
-                workbench: resolvedWorkbenchConfiguration()
+                workbench: try resolvedWorkbenchConfiguration()
             )
             try CLIOutput.emit(
                 payload: payload,
@@ -79,7 +79,7 @@ struct ServeCommand: AsyncParsableCommand {
             configuration: serverConfiguration,
             catalog: catalog,
             generator: AFMFoundationModelsChatGenerator(),
-            workbench: resolvedWorkbenchConfiguration()
+            workbench: try resolvedWorkbenchConfiguration()
         )
         let terminationSignal = AFMTerminationSignal()
 
@@ -87,9 +87,9 @@ struct ServeCommand: AsyncParsableCommand {
             let address = try await server.start()
             try emitStartupMessage(
                 address: address,
-                configuration: serverConfiguration,
-                output: output
-            )
+            configuration: serverConfiguration,
+            output: output
+        )
             try await waitForShutdown(server: server, terminationSignal: terminationSignal)
         } catch {
             try? await server.stop()
@@ -169,7 +169,7 @@ struct ServeCommand: AsyncParsableCommand {
         let payload = ServeStartedPayload(
             address: address,
             configuration: configuration,
-            workbench: resolvedWorkbenchConfiguration()
+            workbench: try resolvedWorkbenchConfiguration()
         )
         var humanLines = ["afm serve listening on \(payload.endpoint)"]
         if ui {
@@ -185,10 +185,16 @@ struct ServeCommand: AsyncParsableCommand {
         }
     }
 
-    private func resolvedWorkbenchConfiguration() -> AFMWorkbenchConfiguration? {
+    private func resolvedWorkbenchConfiguration() throws -> AFMWorkbenchConfiguration? {
         guard ui else { return nil }
+        let expandedTraceDirectory = expandedPathString(
+            traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory
+        )
+        guard expandedTraceDirectory != NSHomeDirectory() else {
+            throw ValidationError("--trace-dir must point to a dedicated trace directory, not your home directory")
+        }
         return AFMWorkbenchConfiguration(
-            traceDirectory: expandedPathString(traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory)
+            traceDirectory: expandedTraceDirectory
         )
     }
 }
