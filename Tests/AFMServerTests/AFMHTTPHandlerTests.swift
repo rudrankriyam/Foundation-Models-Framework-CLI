@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import NIOCore
 import NIOEmbedded
@@ -310,6 +311,19 @@ func workbenchStaleBridgeModelsAreUnavailable() throws {
     let models = try #require(bridge["models"] as? [[String: Any]])
     #expect(models.map { $0["id"] as? String } == ["pcc", "system"])
     #expect(models.allSatisfy { $0["available"] as? Bool == false })
+}
+
+@Test("Workbench trace listing does not chmod existing trace directories")
+func workbenchTraceListingPreservesExistingDirectoryPermissions() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    try FileManager.default.createDirectory(at: directory.trace, withIntermediateDirectories: true)
+    Darwin.chmod(directory.trace.path(), 0o755)
+    let router = testRouter(workbenchDirectory: directory)
+
+    let traces = try performRequest(path: "/api/workbench/traces", router: router)
+    #expect(traces.head.status == .ok)
+    #expect(afmBridgePermissions(try afmBridgeStatus(at: directory.trace.path())) == 0o755)
 }
 
 @Test("Workbench chat POST requires JSON even when the body is empty")

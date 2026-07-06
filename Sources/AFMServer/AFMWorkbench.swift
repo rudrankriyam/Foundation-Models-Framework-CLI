@@ -559,6 +559,13 @@ private final class AFMWorkbenchTraceStore: @unchecked Sendable {
     }
 
     private func prepareDirectory() throws {
+        var isDirectory = ObjCBool(false)
+        if FileManager.default.fileExists(atPath: directoryPath, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else {
+                throw CocoaError(.fileWriteFileExists)
+            }
+            return
+        }
         try FileManager.default.createDirectory(
             atPath: directoryPath,
             withIntermediateDirectories: true
