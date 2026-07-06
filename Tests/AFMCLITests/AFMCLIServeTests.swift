@@ -13,7 +13,7 @@ func serveHelp() throws {
     #expect(serve.status == 0)
     for flag in [
         "--host", "--port", "--socket", "--allow-network", "--token", "--allow-origin",
-        "--max-concurrent-generations", "--model-timeout"
+        "--ui", "--trace-dir", "--max-concurrent-generations", "--model-timeout"
     ] {
         #expect(serve.stdout.contains(flag))
     }
@@ -29,9 +29,43 @@ func serveDryRun() throws {
     #expect(json["status"] as? String == "dry_run")
     #expect(json["command"] as? String == "serve")
     #expect(json["endpoint"] as? String == "http://127.0.0.1:1976")
+    #expect(json["workbenchEnabled"] as? Bool == false)
+    #expect(json["traceDirectory"] == nil)
     #expect(json["authenticationEnabled"] as? Bool == true)
     #expect(json["maximumConcurrentGenerations"] as? Int == 1)
     #expect(json["modelTimeoutSeconds"] as? Double == 120)
+}
+
+@Test("Serve workbench dry-run reports the browser endpoint and trace directory")
+func serveWorkbenchDryRun() throws {
+    let traceDirectory = "/tmp/afm-traces-\(UUID().uuidString)"
+    let result = try runAFM(
+        "serve", "--ui", "--trace-dir", traceDirectory, "--port", "1977", "--output", "json", "--dry-run"
+    )
+
+    #expect(result.status == 0)
+    let json = try parseJSONObject(result.stdout)
+    #expect(json["status"] as? String == "dry_run")
+    #expect(json["command"] as? String == "serve")
+    #expect(json["endpoint"] as? String == "http://127.0.0.1:1977")
+    #expect(json["workbenchEnabled"] as? Bool == true)
+    #expect(json["traceDirectory"] as? String == traceDirectory)
+}
+
+@Test("Serve workbench trace directory rejects a bare tilde")
+func serveWorkbenchTraceDirectoryRejectsBareTilde() throws {
+    let result = try runAFM(
+        "serve", "--ui", "--trace-dir", "~", "--output", "json", "--dry-run"
+    )
+
+    #expect(result.status == 64)
+    #expect(result.stderr.contains("--trace-dir must point to a dedicated trace directory"))
+
+    let trailingSlash = try runAFM(
+        "serve", "--ui", "--trace-dir", NSHomeDirectory() + "/", "--output", "json", "--dry-run"
+    )
+    #expect(trailingSlash.status == 64)
+    #expect(trailingSlash.stderr.contains("--trace-dir must point to a dedicated trace directory"))
 }
 
 @Test("Serve rejects unsafe binding combinations before listening")
@@ -55,6 +89,18 @@ func serveConfigurationValidation() throws {
     )
     #expect(mixedTransports.status == 64)
     #expect(mixedTransports.stderr.contains("--socket cannot be combined"))
+
+    let workbenchOnSocket = try runAFM(
+        "serve", "--dry-run", "--ui", "--socket", "/tmp/afm.sock"
+    )
+    #expect(workbenchOnSocket.status == 64)
+    #expect(workbenchOnSocket.stderr.contains("--ui requires a TCP endpoint"))
+
+    let traceDirectoryWithoutUI = try runAFM(
+        "serve", "--dry-run", "--trace-dir", "/tmp/afm-traces"
+    )
+    #expect(traceDirectoryWithoutUI.status == 64)
+    #expect(traceDirectoryWithoutUI.stderr.contains("--trace-dir requires --ui"))
 
     let wildcardOrigin = try runAFM("serve", "--dry-run", "--allow-origin", "*")
     #expect(wildcardOrigin.status == 64)

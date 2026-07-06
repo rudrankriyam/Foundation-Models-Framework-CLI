@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import NIOCore
 import NIOEmbedded
@@ -66,6 +67,14 @@ func hostAndOriginPolicy() throws {
     #expect(hostileOrigin.head.status == .forbidden)
     #expect(try errorCode(hostileOrigin.body) == "origin_not_allowed")
 
+    let sameOrigin = try performRequest(
+        path: "/health",
+        additionalHeaders: [("origin", "http://127.0.0.1:1976")],
+        router: router
+    )
+    #expect(sameOrigin.head.status == .ok)
+    #expect(sameOrigin.head.headers.first(name: "access-control-allow-origin") == "http://127.0.0.1:1976")
+
     let allowedRouter = testRouter(allowedOrigins: ["https://trusted.example"])
     let allowed = try performRequest(
         path: "/health",
@@ -104,6 +113,32 @@ func bearerAuthentication() throws {
         router: router
     )
     #expect(valid.head.status == .ok)
+}
+
+@Test("Bearer authentication lets the workbench shell load but protects its APIs")
+func bearerAuthenticationWithWorkbench() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let router = testRouter(token: "correct-token", workbenchDirectory: directory)
+
+    let shell = try performRequest(path: "/", router: router)
+    #expect(shell.head.status == .ok)
+    let html = try #require(String(data: shell.body, encoding: .utf8))
+    #expect(html.contains("afm.workbench.token"))
+    #expect(html.contains("authorization"))
+    #expect(html.contains("async function workbenchChat"))
+    #expect(html.contains("Saved failure"))
+    #expect(html.contains("refresh failed"))
+
+    let statusWithoutToken = try performRequest(path: "/api/workbench/status", router: router)
+    #expect(statusWithoutToken.head.status == .unauthorized)
+
+    let statusWithToken = try performRequest(
+        path: "/api/workbench/status",
+        additionalHeaders: [("authorization", "Bearer correct-token")],
+        router: router
+    )
+    #expect(statusWithToken.head.status == .ok)
 }
 
 @Test("Body and media-type limits produce deterministic JSON errors")
@@ -213,10 +248,179 @@ func chatRequiresJSONContentType() throws {
     _ = try? channel.finish()
 }
 
+@Test("Workbench routes are available only when the browser surface is enabled")
+func workbenchRoutesRequireOptIn() throws {
+    let disabled = try performRequest(path: "/", router: testRouter())
+    #expect(disabled.head.status == .notFound)
+    #expect(try errorCode(disabled.body) == "workbench_not_enabled")
+
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let enabled = try performRequest(path: "/", router: testRouter(workbenchDirectory: directory))
+
+    #expect(enabled.head.status == .ok)
+    #expect(enabled.head.headers.first(name: "content-type") == "text/html; charset=utf-8")
+    #expect(String(data: enabled.body, encoding: .utf8)?.contains("AFM Workbench") == true)
+}
+
+@Test("Workbench status, snippets, and traces return structured JSON")
+func workbenchDiscoveryEndpoints() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let router = testRouter(workbenchDirectory: directory)
+
+    let status = try performRequest(path: "/api/workbench/status", router: router)
+    #expect(status.head.status == .ok)
+    let statusJSON = try jsonObject(status.body)
+    #expect(statusJSON["command"] as? String == "workbench status")
+    #expect(statusJSON["traceDirectory"] as? String == directory.trace.path())
+    let directModels = try #require(statusJSON["directModels"] as? [[String: Any]])
+    #expect(directModels.map { $0["id"] as? String } == ["system"])
+    let bridge = try #require(statusJSON["bridge"] as? [String: Any])
+    #expect(bridge["status"] as? String == "missing")
+
+    let snippets = try performRequest(path: "/api/workbench/snippets", router: router)
+    #expect(snippets.head.status == .ok)
+    let snippetsJSON = try jsonObject(snippets.body)
+    let snippetData = try #require(snippetsJSON["snippets"] as? [[String: Any]])
+    #expect(snippetData.map { $0["id"] as? String }.contains("codex-walkthrough"))
+
+    let traces = try performRequest(path: "/api/workbench/traces", router: router)
+    #expect(traces.head.status == .ok)
+    let tracesJSON = try jsonObject(traces.body)
+    #expect(tracesJSON["command"] as? String == "workbench traces")
+    #expect((tracesJSON["traces"] as? [[String: Any]])?.isEmpty == true)
+}
+
+@Test("Workbench marks stale bridge models unavailable")
+func workbenchStaleBridgeModelsAreUnavailable() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let store = try AFMBridgeDescriptorStore(directoryPath: directory.bridge.path())
+    _ = try store.publish(try makeAFMBridgeTestDescriptor(
+        processIdentifier: Int32.max,
+        modelIdentifiers: ["pcc", "system"]
+    ))
+    let router = testRouter(workbenchDirectory: directory)
+
+    let status = try performRequest(path: "/api/workbench/status", router: router)
+    #expect(status.head.status == .ok)
+    let statusJSON = try jsonObject(status.body)
+    let bridge = try #require(statusJSON["bridge"] as? [String: Any])
+    #expect(bridge["status"] as? String == "stale")
+    let models = try #require(bridge["models"] as? [[String: Any]])
+    #expect(models.map { $0["id"] as? String } == ["pcc", "system"])
+    #expect(models.allSatisfy { $0["available"] as? Bool == false })
+}
+
+@Test("Workbench trace listing does not chmod existing trace directories")
+func workbenchTraceListingPreservesExistingDirectoryPermissions() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    try FileManager.default.createDirectory(at: directory.trace, withIntermediateDirectories: true)
+    Darwin.chmod(directory.trace.path(), 0o755)
+    let router = testRouter(workbenchDirectory: directory)
+
+    let traces = try performRequest(path: "/api/workbench/traces", router: router)
+    #expect(traces.head.status == .ok)
+    #expect(afmBridgePermissions(try afmBridgeStatus(at: directory.trace.path())) == 0o755)
+}
+
+@Test("Workbench chat POST requires JSON even when the body is empty")
+func workbenchChatRequiresJSONContentType() throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let channel = EmbeddedChannel(
+        handler: AFMHTTPHandler(router: testRouter(workbenchDirectory: directory), limits: .init())
+    )
+    try writeRequest(method: .POST, path: "/api/workbench/chat", to: channel)
+    let response = try readResponse(from: channel)
+    #expect(response.head.status == .unsupportedMediaType)
+    #expect(try errorCode(response.body) == "unsupported_media_type")
+    _ = try? channel.finish()
+}
+
+@Test("Workbench chat preserves non-success upstream status")
+func workbenchChatPreservesUpstreamStatus() async throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let workbench = AFMWorkbench(configuration: .init(traceDirectory: directory.trace.path()))
+    let service = AFMChatCompletionService(
+        catalog: AFMStaticModelCatalog(models: [.init(id: "system", isAvailable: true)]),
+        generator: HandlerTestGenerator(),
+        clock: TestClock(value: 123),
+        policy: .init()
+    )
+    let body = Data(#"{"route":"direct","model":"missing","prompt":"Hello"}"#.utf8)
+
+    let recorder = FixedResponseRecorder()
+    try await workbench.writeChatResponse(
+        body: body,
+        chatCompletions: service
+    ) { emission in
+        if case .fixed(let response) = emission {
+            await recorder.record(response)
+        }
+    }
+
+    let response = try #require(await recorder.response())
+    #expect(response.status == .notFound)
+    let json = try jsonObject(response.body)
+    #expect(json["command"] as? String == "workbench chat")
+    #expect(json["model"] as? String == "missing")
+}
+
+@Test("Workbench chat errors still return saved trace payloads")
+func workbenchChatErrorsReturnTracePayloads() async throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let workbench = AFMWorkbench(configuration: .init(traceDirectory: directory.trace.path()))
+    let body = Data(#"{"route":"direct","model":"system","prompt":"Hello"}"#.utf8)
+
+    let recorder = FixedResponseRecorder()
+    try await workbench.writeChatResponse(
+        body: body,
+        chatCompletions: nil
+    ) { emission in
+        if case .fixed(let response) = emission {
+            await recorder.record(response)
+        }
+    }
+
+    let response = try #require(await recorder.response())
+    #expect(response.status == .internalServerError)
+    let json = try jsonObject(response.body)
+    #expect(json["command"] as? String == "workbench chat")
+    #expect(json["model"] as? String == "system")
+    #expect(json["traceID"] is String)
+    #expect((json["error"] as? String)?.contains("Direct chat completions") == true)
+}
+
 private struct TestClock: AFMServerClock {
     let value: Int64
 
     func unixTime() -> Int64 { value }
+}
+
+private struct HandlerTestGenerator: AFMChatCompletionGenerating {
+    func generate(_ request: AFMChatGenerationRequest) async throws -> AFMChatGenerationResult {
+        .init(
+            content: "Done",
+            usage: .init(inputTokenCount: 1, measurement: .estimated, scope: .response)
+        )
+    }
+}
+
+private actor FixedResponseRecorder {
+    private var storedResponse: AFMHTTPResponse?
+
+    func record(_ response: AFMHTTPResponse) {
+        storedResponse = response
+    }
+
+    func response() -> AFMHTTPResponse? {
+        storedResponse
+    }
 }
 
 private struct TestHTTPResponse {
@@ -247,10 +451,29 @@ private final class DelayedResponseEndHandler: ChannelOutboundHandler, @unchecke
     }
 }
 
+private struct WorkbenchTestDirectory {
+    let root: URL
+    let trace: URL
+    let bridge: URL
+
+    init() throws {
+        root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "afm-workbench-\(UUID().uuidString)")
+        trace = root.appending(path: "traces")
+        bridge = root.appending(path: "bridge")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: root)
+    }
+}
+
 private func testRouter(
     token: String? = nil,
     allowedOrigins: Set<String> = [],
-    limits: AFMServerLimits = .init()
+    limits: AFMServerLimits = .init(),
+    workbenchDirectory: WorkbenchTestDirectory? = nil
 ) -> AFMRequestRouter {
     AFMRequestRouter(
         configuration: .init(
@@ -258,7 +481,13 @@ private func testRouter(
             security: .init(bearerToken: token, allowedOrigins: allowedOrigins)
         ),
         catalog: AFMStaticModelCatalog(models: [.init(id: "system", isAvailable: true)]),
-        clock: TestClock(value: 123)
+        clock: TestClock(value: 123),
+        workbench: workbenchDirectory.map {
+            AFMWorkbench(configuration: .init(
+                traceDirectory: $0.trace.path(),
+                bridgeDirectory: $0.bridge.path()
+            ))
+        }
     )
 }
 

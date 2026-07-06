@@ -17,6 +17,7 @@ func rootHelpShowsGroupedCommands() throws {
     let result = try runAFM("--help")
 
     #expect(result.status == 0)
+    #expect(result.stdout.contains("Use afm directly for on-device Foundation Models workflows."))
     #expect(result.stdout.contains("MODEL COMMANDS"))
     #expect(result.stdout.contains("TOKEN COMMANDS"))
     #expect(result.stdout.contains("SESSION COMMANDS"))
@@ -24,6 +25,14 @@ func rootHelpShowsGroupedCommands() throws {
     #expect(result.stdout.contains("TOOL COMMANDS"))
     #expect(result.stdout.contains("EXPORT COMMANDS"))
     #expect(result.stdout.contains("afm model status"))
+}
+
+@Test("Root version matches the release line")
+func rootVersionMatchesReleaseLine() throws {
+    let result = try runAFM("--version")
+
+    #expect(result.status == 0)
+    #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "0.2.0")
 }
 
 @Test("Root dry-run emits a request shape instead of normal help output")

@@ -10,9 +10,9 @@ struct RootStatusPayload: Encodable {
 struct AFMRootCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "afm",
-        abstract: "A powerful command-line interface for Foundation Models on Apple platforms.",
+        abstract: "Native automation for Foundation Models sessions, local services, and signed bridges.",
         discussion: HelpText.root,
-        version: "0.1.0",
+        version: "0.2.0",
         subcommands: [
             AvailableCommand.self,
             QuotaUsageCommand.self,
@@ -44,7 +44,7 @@ struct AFMRootCommand: AsyncParsableCommand {
 
         let payload = RootStatusPayload(
             name: Self.configuration.commandName ?? "afm",
-            summary: "Workflow-first CLI for Foundation Models sessions, schemas, tools, exports, and local services.",
+            summary: "Workflow-first CLI for Foundation Models sessions, schemas, tools, exports, local services, and signed Foundation Lab bridges.",
             commands: [
                 "available", "quota-usage", "model", "token-count", "tag", "session",
                 "schema", "tool", "transcript", "feedback", "serve", "bridge"
