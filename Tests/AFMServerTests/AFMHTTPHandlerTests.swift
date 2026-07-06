@@ -370,6 +370,32 @@ func workbenchChatPreservesUpstreamStatus() async throws {
     #expect(json["model"] as? String == "missing")
 }
 
+@Test("Workbench chat errors still return saved trace payloads")
+func workbenchChatErrorsReturnTracePayloads() async throws {
+    let directory = try WorkbenchTestDirectory()
+    defer { directory.remove() }
+    let workbench = AFMWorkbench(configuration: .init(traceDirectory: directory.trace.path()))
+    let body = Data(#"{"route":"direct","model":"system","prompt":"Hello"}"#.utf8)
+
+    let recorder = FixedResponseRecorder()
+    try await workbench.writeChatResponse(
+        body: body,
+        chatCompletions: nil
+    ) { emission in
+        if case .fixed(let response) = emission {
+            await recorder.record(response)
+        }
+    }
+
+    let response = try #require(await recorder.response())
+    #expect(response.status == .internalServerError)
+    let json = try jsonObject(response.body)
+    #expect(json["command"] as? String == "workbench chat")
+    #expect(json["model"] as? String == "system")
+    #expect(json["traceID"] is String)
+    #expect((json["error"] as? String)?.contains("Direct chat completions") == true)
+}
+
 private struct TestClock: AFMServerClock {
     let value: Int64
 

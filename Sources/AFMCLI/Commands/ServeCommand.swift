@@ -190,12 +190,19 @@ struct ServeCommand: AsyncParsableCommand {
         let expandedTraceDirectory = expandedPathString(
             traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory
         )
-        guard expandedTraceDirectory != NSHomeDirectory() else {
+        guard normalizedPath(expandedTraceDirectory) != normalizedPath(NSHomeDirectory()) else {
             throw ValidationError("--trace-dir must point to a dedicated trace directory, not your home directory")
         }
         return AFMWorkbenchConfiguration(
             traceDirectory: expandedTraceDirectory
         )
+    }
+
+    private func normalizedPath(_ path: String) -> String {
+        URL(fileURLWithPath: path)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
     }
 }
 

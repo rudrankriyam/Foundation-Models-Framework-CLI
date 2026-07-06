@@ -104,11 +104,9 @@ struct AFMWorkbench: Sendable {
                 error: error.localizedDescription
             )
             traceStore.save(trace)
-            try await emission(.fixed(.apiError(
+            try await emission(.fixed(.json(
                 status: .internalServerError,
-                message: error.localizedDescription,
-                code: "workbench_chat_failed",
-                type: "server_error"
+                body: AFMWorkbenchChatPayload(trace: trace)
             )))
         }
     }
@@ -407,6 +405,7 @@ private struct AFMWorkbenchChatPayload: Encodable {
     let durationMilliseconds: Int
     let requestJSON: String
     let responseJSON: String?
+    let error: String?
 
     init(trace: AFMWorkbenchTrace) {
         traceID = trace.id
@@ -418,6 +417,7 @@ private struct AFMWorkbenchChatPayload: Encodable {
         durationMilliseconds = trace.durationMilliseconds
         requestJSON = trace.requestJSON
         responseJSON = trace.responseJSON
+        error = trace.error
     }
 }
 
@@ -1593,7 +1593,7 @@ private enum AFMWorkbenchHTML {
             });
             const payload = result.payload;
             const savedFailure = !result.ok;
-            state.lastResponse = payload.response || payload.responseJSON || "Done.";
+            state.lastResponse = payload.response || payload.error || payload.responseJSON || "Done.";
             $("response").textContent = state.lastResponse;
             $("responseNote").textContent = savedFailure ? "Saved failure" : "Saved";
             $("response").classList.toggle("is-error", savedFailure);

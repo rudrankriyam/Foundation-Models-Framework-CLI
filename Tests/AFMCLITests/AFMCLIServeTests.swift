@@ -60,6 +60,12 @@ func serveWorkbenchTraceDirectoryRejectsBareTilde() throws {
 
     #expect(result.status == 64)
     #expect(result.stderr.contains("--trace-dir must point to a dedicated trace directory"))
+
+    let trailingSlash = try runAFM(
+        "serve", "--ui", "--trace-dir", NSHomeDirectory() + "/", "--output", "json", "--dry-run"
+    )
+    #expect(trailingSlash.status == 64)
+    #expect(trailingSlash.stderr.contains("--trace-dir must point to a dedicated trace directory"))
 }
 
 @Test("Serve rejects unsafe binding combinations before listening")
