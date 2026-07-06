@@ -651,368 +651,688 @@ private enum AFMWorkbenchHTML {
       <style>
         :root {
           color-scheme: light dark;
-          --bg: #f7f8fa;
-          --panel: rgba(255,255,255,.86);
-          --panel-strong: rgba(255,255,255,.96);
-          --text: #121417;
-          --muted: #66707c;
-          --line: rgba(20,25,31,.12);
+          --bg: #eef1f5;
+          --pane: #f8f9fb;
+          --pane-raised: #ffffff;
+          --pane-muted: #f1f3f6;
+          --ink: #171a1f;
+          --muted: #59616d;
+          --faint: #7a828d;
+          --line: #d6dbe2;
+          --line-strong: #b7c0ca;
           --accent: #0a84ff;
-          --good: #1f9d55;
-          --warn: #b7791f;
-          --bad: #c2410c;
-          --code: #0d1117;
-          --codeText: #d6e2ff;
+          --accent-soft: #e8f2ff;
+          --good: #228b53;
+          --warn: #9a6a11;
+          --bad: #c43c24;
+          --code: #101318;
+          --code-ink: #e7edf7;
+          --radius: 8px;
+          --focus: 0 0 0 3px rgba(10, 132, 255, .22);
         }
         @media (prefers-color-scheme: dark) {
           :root {
-            --bg: #111315;
-            --panel: rgba(30,32,36,.78);
-            --panel-strong: rgba(35,38,42,.94);
-            --text: #f4f7fb;
-            --muted: #9aa6b2;
-            --line: rgba(230,237,245,.13);
-            --code: #080a0d;
-            --codeText: #dbe8ff;
+            --bg: #15181d;
+            --pane: #1d2026;
+            --pane-raised: #242831;
+            --pane-muted: #20242b;
+            --ink: #f2f5f8;
+            --muted: #a8b0bb;
+            --faint: #7f8996;
+            --line: #333944;
+            --line-strong: #48515f;
+            --accent: #63a8ff;
+            --accent-soft: #1e334d;
+            --code: #0d1015;
+            --code-ink: #e8eef8;
           }
         }
-        * { box-sizing: border-box; }
+        * {
+          box-sizing: border-box;
+        }
+        html {
+          background: var(--bg);
+        }
         body {
           margin: 0;
+          height: 100svh;
           min-height: 100svh;
-          background:
-            radial-gradient(circle at 20% 0%, rgba(10,132,255,.14), transparent 34rem),
-            linear-gradient(135deg, rgba(255,255,255,.52), transparent 40%),
-            var(--bg);
-          color: var(--text);
+          overflow: hidden;
+          background: var(--bg);
+          color: var(--ink);
           font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
           letter-spacing: 0;
         }
-        button, input, textarea, select { font: inherit; }
+        button, input, textarea, select {
+          font: inherit;
+        }
+        button {
+          color: inherit;
+        }
+        button:focus-visible,
+        textarea:focus-visible {
+          outline: none;
+          box-shadow: var(--focus);
+        }
         .shell {
-          min-height: 100svh;
+          height: 100svh;
           display: grid;
           grid-template-rows: auto 1fr;
         }
-        header {
-          height: 68px;
+        .topbar {
+          height: 46px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 20px;
-          padding: 0 24px;
+          gap: 16px;
+          padding: 0 14px;
           border-bottom: 1px solid var(--line);
-          backdrop-filter: blur(20px);
-          background: color-mix(in srgb, var(--bg) 82%, transparent);
+          background: var(--pane-raised);
         }
         .brand {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 9px;
           min-width: 0;
         }
         .mark {
-          width: 34px;
-          height: 34px;
+          width: 27px;
+          height: 27px;
           display: grid;
           place-items: center;
-          border-radius: 8px;
-          background: var(--text);
+          border-radius: 7px;
+          background: var(--ink);
           color: var(--bg);
-          font-weight: 740;
+          font-size: 12px;
+          font-weight: 760;
         }
         h1 {
           margin: 0;
-          font-size: 18px;
+          font-size: 14px;
           line-height: 1.1;
+          font-weight: 720;
         }
-        .sub {
-          margin-top: 2px;
+        .subtitle {
+          margin-top: 1px;
           color: var(--muted);
-          font-size: 12px;
+          font-size: 11px;
+          line-height: 1.25;
         }
         .top-actions {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
+          min-width: 0;
         }
-        .status-pill {
+        .chip {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          min-height: 32px;
-          padding: 0 11px;
+          gap: 6px;
+          min-height: 26px;
+          max-width: 100%;
+          padding: 0 9px;
           border: 1px solid var(--line);
           border-radius: 999px;
-          background: var(--panel);
+          background: var(--pane-raised);
           color: var(--muted);
-          font-size: 12px;
+          font-size: 11px;
+          line-height: 1;
           white-space: nowrap;
+        }
+        .chip strong {
+          color: var(--ink);
+          font-weight: 640;
         }
         .dot {
           width: 8px;
           height: 8px;
           border-radius: 50%;
           background: var(--muted);
+          flex: 0 0 auto;
         }
         .dot.good { background: var(--good); }
         .dot.warn { background: var(--warn); }
         .dot.bad { background: var(--bad); }
-        main {
-          display: grid;
-          grid-template-columns: 280px minmax(420px, 1fr) 340px;
-          gap: 1px;
+        .layout {
           min-height: 0;
+          display: grid;
+          grid-template-columns: clamp(196px, 22vw, 220px) minmax(360px, 1fr) clamp(320px, 35vw, 360px);
           background: var(--line);
+          gap: 1px;
         }
-        aside, section {
+        .pane {
           min-width: 0;
           min-height: 0;
-          background: color-mix(in srgb, var(--bg) 94%, transparent);
+          background: var(--pane);
         }
-        .sidebar, .inspector {
-          padding: 20px;
+        .rail,
+        .center,
+        .inspector {
           overflow: auto;
         }
-        .workspace {
-          padding: 22px;
-          overflow: auto;
-          background:
-            linear-gradient(180deg, color-mix(in srgb, var(--bg) 96%, transparent), var(--bg));
+        .rail {
+          padding: 13px 12px;
         }
-        .label {
-          margin: 0 0 10px;
-          color: var(--muted);
-          font-size: 11px;
+        .center {
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+        .inspector {
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          overflow: hidden;
+        }
+        .section {
+          margin-bottom: 18px;
+        }
+        .section:last-child {
+          margin-bottom: 0;
+        }
+        .section-title {
+          margin: 0 0 8px;
+          color: var(--ink);
+          font-size: 12px;
+          line-height: 1.2;
           font-weight: 700;
-          letter-spacing: .06em;
-          text-transform: uppercase;
         }
         .row {
-          display: flex;
+          display: grid;
+          grid-template-columns: 62px minmax(0, 1fr);
           align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          min-height: 38px;
+          gap: 8px;
+          min-height: 29px;
           border-top: 1px solid var(--line);
         }
-        .row:first-of-type { border-top: 0; }
-        .row span:first-child { color: var(--muted); font-size: 13px; }
-        .row strong { font-size: 13px; font-weight: 650; text-align: right; }
-        .block {
-          margin-bottom: 24px;
+        .row:first-child {
+          border-top: 0;
+        }
+        .row span:first-child {
+          color: var(--muted);
+          font-size: 11px;
+        }
+        .row strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink);
+          font-size: 11px;
+          font-weight: 640;
+          text-align: right;
         }
         .model-strip {
           display: flex;
           flex-wrap: wrap;
-          gap: 8px;
+          gap: 6px;
         }
         .model-option {
-          min-height: 34px;
-          padding: 0 11px;
+          min-height: 28px;
+          padding: 0 9px;
           border: 1px solid var(--line);
-          border-radius: 8px;
-          background: var(--panel);
-          color: var(--text);
+          border-radius: 7px;
+          background: var(--pane-raised);
+          color: var(--ink);
           cursor: pointer;
+          font-size: 12px;
+        }
+        .model-option:hover {
+          border-color: var(--line-strong);
+          background: var(--pane-muted);
         }
         .model-option.active {
-          border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-        }
-        textarea {
-          width: 100%;
-          min-height: 170px;
-          resize: vertical;
-          padding: 16px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          outline: none;
-          background: var(--panel-strong);
-          color: var(--text);
-          line-height: 1.45;
-        }
-        textarea:focus {
-          border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-        }
-        .runbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          margin-top: 12px;
-        }
-        .primary, .secondary, .copy {
-          min-height: 36px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          padding: 0 13px;
-          cursor: pointer;
-          background: var(--panel);
-          color: var(--text);
-        }
-        .primary {
           border-color: var(--accent);
-          background: var(--accent);
-          color: white;
-          font-weight: 700;
+          background: var(--accent-soft);
+          color: var(--ink);
         }
-        .primary:disabled { opacity: .58; cursor: default; }
-        .response {
-          margin-top: 22px;
-          padding: 18px;
-          min-height: 170px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          background: var(--panel-strong);
-          white-space: pre-wrap;
-          line-height: 1.55;
+        .model-option:disabled {
+          color: var(--faint);
+          cursor: not-allowed;
+          opacity: .68;
         }
-        .meta-grid {
-          margin-top: 12px;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          overflow: hidden;
-          background: var(--line);
-        }
-        .metric {
-          padding: 12px;
-          background: var(--panel);
+        .prompt-pane,
+        .response-pane {
           min-width: 0;
+          background: var(--pane-raised);
         }
-        .metric div { color: var(--muted); font-size: 11px; margin-bottom: 5px; }
-        .metric strong { display: block; overflow-wrap: anywhere; font-size: 13px; }
-        pre {
-          margin: 0;
+        .prompt-pane {
           padding: 14px;
-          border-radius: 8px;
-          overflow: auto;
-          background: var(--code);
-          color: var(--codeText);
-          font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          border-bottom: 1px solid var(--line);
         }
-        .snippet {
-          margin-bottom: 12px;
-        }
-        .snippet-head {
+        .pane-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 10px;
-          margin-bottom: 8px;
         }
-        .snippet h3, .trace h3 {
+        .pane-head > div:first-child {
+          min-width: 0;
+        }
+        .pane-title {
           margin: 0;
           font-size: 13px;
+          line-height: 1.2;
+          font-weight: 700;
         }
-        .copy {
-          min-height: 30px;
-          font-size: 12px;
+        .pane-note {
+          margin: 3px 0 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--muted);
+          font-size: 11px;
+          line-height: 1.35;
         }
-        .trace {
+        textarea {
           width: 100%;
-          text-align: left;
+          height: 124px;
+          min-height: 84px;
+          max-height: 190px;
+          resize: vertical;
+          margin-top: 9px;
+          padding: 10px 11px;
           border: 1px solid var(--line);
-          border-radius: 8px;
-          padding: 12px;
-          margin-bottom: 10px;
-          background: var(--panel);
-          color: var(--text);
+          border-radius: 7px;
+          outline: none;
+          background: var(--pane);
+          color: var(--ink);
+          font-size: 13px;
+          line-height: 1.45;
+        }
+        textarea::placeholder {
+          color: var(--muted);
+        }
+        textarea:focus {
+          border-color: var(--accent);
+        }
+        .prompt-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-top: 9px;
+        }
+        .primary,
+        .secondary,
+        .quiet,
+        .tab,
+        .snippet-row {
+          min-height: 29px;
+          border: 1px solid var(--line);
+          border-radius: 7px;
+          background: var(--pane-raised);
+          color: var(--ink);
           cursor: pointer;
         }
-        .trace p {
-          margin: 6px 0 0;
-          color: var(--muted);
+        .primary,
+        .secondary,
+        .quiet {
+          padding: 0 10px;
           font-size: 12px;
+        }
+        .primary {
+          min-width: 74px;
+          border-color: var(--accent);
+          background: var(--accent);
+          color: #fff;
+          font-weight: 720;
+        }
+        .primary:hover:not(:disabled) {
+          filter: brightness(.98);
+        }
+        .secondary:hover,
+        .quiet:hover,
+        .tab:hover,
+        .snippet-row:hover {
+          border-color: var(--line-strong);
+          background: var(--pane-muted);
+        }
+        .primary:disabled,
+        .secondary:disabled,
+        .quiet:disabled {
+          cursor: not-allowed;
+          opacity: .58;
+        }
+        .response-pane {
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .response-pane .pane-head,
+        .inspector-head {
+          min-height: 44px;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--line);
+          background: var(--pane-muted);
+        }
+        .run-card {
+          min-width: 0;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--line);
+          background: var(--pane);
+        }
+        .evidence-section {
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          margin: 0;
+        }
+        .meta-list {
+          display: grid;
+          gap: 1px;
+        }
+        .meta-row {
+          display: grid;
+          grid-template-columns: 70px minmax(0, 1fr);
+          gap: 8px;
+          min-height: 26px;
+          align-items: center;
+          border-top: 1px solid var(--line);
+        }
+        .meta-row:first-child {
+          border-top: 0;
+        }
+        .meta-row span {
+          color: var(--muted);
+          font-size: 11px;
+        }
+        .meta-row strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink);
+          font-size: 11px;
+          font-weight: 650;
+          text-align: right;
+        }
+        .response-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: auto;
+          padding: 13px 14px;
+          white-space: pre-wrap;
+          color: var(--ink);
+          font-size: 13px;
+          line-height: 1.52;
+        }
+        .response-body.is-error {
+          color: var(--bad);
+        }
+        .tabs {
+          display: flex;
+          align-items: center;
+          gap: 0;
+          padding: 2px;
+          border: 1px solid var(--line);
+          border-radius: 7px;
+          background: var(--pane-raised);
+        }
+        .tab {
+          min-height: 22px;
+          padding: 0 7px;
+          border: 0;
+          border-radius: 5px;
+          background: transparent;
+          color: var(--muted);
+          font-size: 11px;
+        }
+        .tab.active {
+          background: var(--pane-muted);
+          color: var(--ink);
+          box-shadow: inset 0 0 0 1px var(--line);
+        }
+        .evidence {
+          min-height: 0;
+          margin: 0;
+          overflow: auto;
+          padding: 10px 12px 12px;
+          background: var(--pane);
+        }
+        .snippet-picker {
+          display: grid;
+          gap: 6px;
+          margin-bottom: 9px;
+        }
+        .snippet-row {
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 8px;
+          padding: 7px 8px;
+          text-align: left;
+        }
+        .snippet-row strong {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 11px;
+          font-weight: 680;
+        }
+        .snippet-row span {
+          color: var(--muted);
+          font-size: 11px;
+        }
+        .snippet-row.active {
+          border-color: var(--accent);
+          background: var(--accent-soft);
+        }
+        .code-head {
+          min-height: 0;
+          padding: 0 0 7px;
+          border: 0;
+          background: transparent;
+        }
+        pre {
+          margin: 0;
+          max-height: 260px;
+          padding: 10px;
+          overflow: auto;
+          border-radius: 7px;
+          background: var(--code);
+          color: var(--code-ink);
+          font: 11px/1.48 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+        }
+        .trace-list {
+          display: grid;
+          gap: 7px;
+        }
+        .trace {
+          border: 1px solid var(--line);
+          border-radius: 7px;
+          padding: 9px;
+          background: var(--pane-raised);
+        }
+        .trace h3 {
+          margin: 0;
+          overflow-wrap: anywhere;
+          color: var(--ink);
+          font-size: 11px;
+          font-weight: 700;
+        }
+        .trace p {
+          margin: 5px 0 0;
+          color: var(--muted);
+          font-size: 11px;
           line-height: 1.35;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
         .trace small {
           display: block;
-          margin-top: 8px;
-          color: var(--muted);
+          margin-top: 7px;
+          color: var(--faint);
+          font-size: 10px;
         }
-        .fade-in {
-          animation: fadeIn .28s ease both;
+        .empty {
+          min-height: 90px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 14px;
+          border: 1px solid var(--line);
+          border-radius: 7px;
+          color: var(--muted);
+          text-align: center;
+          font-size: 11px;
+          line-height: 1.4;
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(5px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @media (max-width: 1080px) {
-          main { grid-template-columns: 240px minmax(0, 1fr); }
-          .inspector { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+        .response-body.updated {
+          animation: fadeIn .18s ease-out both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: .01ms !important;
+            transition-duration: .01ms !important;
+          }
+        }
+        @media (max-width: 920px) {
+          body { overflow: auto; }
+          .shell { min-height: 100svh; height: auto; }
+          .layout {
+            grid-template-columns: 1fr;
+            gap: 1px;
+          }
+          .rail {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+          }
+          .section { margin-bottom: 0; }
+          .center { overflow: visible; }
+          .response-pane { min-height: 320px; }
+          .inspector { overflow: visible; }
+          .evidence { min-height: 220px; }
         }
         @media (max-width: 760px) {
-          header { height: auto; align-items: flex-start; padding: 16px; flex-direction: column; }
-          main { display: block; }
-          .sidebar, .workspace, .inspector { padding: 16px; }
-          .meta-grid { grid-template-columns: 1fr; }
-          .runbar { align-items: stretch; flex-direction: column; }
+          .topbar {
+            height: auto;
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 12px;
+          }
+          .top-actions {
+            width: 100%;
+            justify-content: space-between;
+          }
+          .rail {
+            grid-template-columns: 1fr;
+          }
+          .center,
+          .rail {
+            padding: 12px;
+          }
         }
       </style>
     </head>
     <body>
       <div class="shell">
-        <header>
+        <header class="topbar">
           <div class="brand">
             <div class="mark">afm</div>
             <div>
               <h1>AFM Workbench</h1>
-              <div class="sub">Local Foundation Models control plane</div>
+              <div class="subtitle">Local Foundation Models control plane</div>
             </div>
           </div>
           <div class="top-actions">
-            <div class="status-pill"><span id="bridgeDot" class="dot"></span><span id="bridgeLabel">Bridge</span></div>
+            <div class="chip"><span id="bridgeDot" class="dot"></span><span id="bridgeLabel">Bridge</span></div>
             <button id="refresh" class="secondary">Refresh</button>
           </div>
         </header>
-        <main>
-          <aside class="sidebar">
-            <div class="block">
-              <p class="label">Runtime</p>
+        <main class="layout">
+          <aside class="rail pane">
+            <section class="section">
+              <h2 class="section-title">Runtime</h2>
               <div id="runtimeRows"></div>
-            </div>
-            <div class="block">
-              <p class="label">Bridge</p>
+            </section>
+            <section class="section">
+              <h2 class="section-title">Bridge</h2>
               <div id="bridgeRows"></div>
-            </div>
-            <div class="block">
-              <p class="label">Models</p>
+            </section>
+            <section class="section">
+              <h2 class="section-title">Models</h2>
               <div id="models" class="model-strip"></div>
-            </div>
+            </section>
           </aside>
-          <section class="workspace">
-            <p class="label">Prompt</p>
-            <textarea id="prompt">Reply with one precise sentence about why the signed bridge matters for PCC.</textarea>
-            <div class="runbar">
-              <div class="status-pill"><span id="routeDot" class="dot"></span><span id="routeLabel">No model selected</span></div>
-              <button id="run" class="primary">Run</button>
+          <section class="center pane">
+            <div class="prompt-pane">
+              <div class="pane-head">
+                <div>
+                  <h2 class="pane-title">Prompt</h2>
+                  <p class="pane-note">Local request</p>
+                </div>
+                <div class="chip"><span id="routeDot" class="dot"></span><strong id="routeLabel">No model selected</strong></div>
+              </div>
+              <textarea id="prompt">Reply with one precise sentence about why the signed bridge matters for PCC.</textarea>
+              <div class="prompt-actions">
+                <button id="copyResponse" class="quiet" disabled>Copy response</button>
+                <button id="run" class="primary">Run</button>
+              </div>
             </div>
-            <div id="response" class="response fade-in">Ready.</div>
-            <div class="meta-grid">
-              <div class="metric"><div>Trace</div><strong id="traceID">-</strong></div>
-              <div class="metric"><div>Duration</div><strong id="duration">-</strong></div>
-              <div class="metric"><div>Finish</div><strong id="finish">-</strong></div>
+            <div class="response-pane">
+              <div class="pane-head">
+                <div>
+                  <h2 class="pane-title">Response</h2>
+                  <p class="pane-note" id="responseNote">Ready</p>
+                </div>
+              </div>
+              <div id="response" class="response-body">Ready.</div>
             </div>
           </section>
-          <aside class="inspector">
-            <div class="block">
-              <p class="label">Snippets</p>
-              <div id="snippets"></div>
+          <aside class="inspector pane">
+            <div class="inspector-head">
+              <div class="pane-head">
+                <div>
+                  <h2 class="pane-title">Run</h2>
+                  <p class="pane-note">Current trace</p>
+                </div>
+              </div>
             </div>
-            <div class="block">
-              <p class="label">Traces</p>
-              <div id="traces"></div>
-            </div>
+            <section class="run-card">
+              <div class="meta-list">
+                <div class="meta-row"><span>Trace</span><strong id="traceID" title="-">-</strong></div>
+                <div class="meta-row"><span>Duration</span><strong id="duration" title="-">-</strong></div>
+                <div class="meta-row"><span>Finish</span><strong id="finish" title="-">-</strong></div>
+              </div>
+            </section>
+            <section class="section evidence-section">
+              <div class="inspector-head">
+                <div class="pane-head">
+                  <h2 class="pane-title">Evidence</h2>
+                  <div class="tabs" role="tablist" aria-label="Evidence panels">
+                    <button class="tab active" data-panel="snippets" type="button">Snippets</button>
+                    <button class="tab" data-panel="traces" type="button">Traces</button>
+                  </div>
+                </div>
+              </div>
+              <div id="evidence" class="evidence"></div>
+            </section>
           </aside>
         </main>
       </div>
       <script>
-        const state = { status: null, selected: null, snippets: [] };
+        const state = {
+          status: null,
+          selected: null,
+          snippets: [],
+          traces: [],
+          activePanel: "snippets",
+          activeSnippet: 0,
+          lastResponse: ""
+        };
         const $ = (id) => document.getElementById(id);
         const originToken = () => location.origin;
 
@@ -1024,7 +1344,8 @@ private enum AFMWorkbenchHTML {
         }
 
         function row(label, value) {
-          return `<div class="row"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value ?? "-")}</strong></div>`;
+          const rendered = humanize(value ?? "-");
+          return `<div class="row"><span>${escapeHTML(label)}</span><strong title="${escapeHTML(rendered)}">${escapeHTML(rendered)}</strong></div>`;
         }
 
         function escapeHTML(value) {
@@ -1033,10 +1354,24 @@ private enum AFMWorkbenchHTML {
           }[char]));
         }
 
+        function humanize(value) {
+          const string = String(value);
+          return string
+            .replace(/([a-z])([A-Z])/g, "$1 $2")
+            .replace(/_/g, " ")
+            .toLowerCase();
+        }
+
+        function statusClass(value) {
+          if (["running", "runnable", "available", "ok"].includes(String(value))) return "good";
+          if (["stale", "unknown", "missingEntitlement", "unavailable"].includes(String(value))) return "warn";
+          return "bad";
+        }
+
         function setBridge(status) {
           const bridge = status.bridge;
           $("bridgeLabel").textContent = bridge.status === "running" ? "Bridge running" : "Bridge " + bridge.status;
-          $("bridgeDot").className = "dot " + (bridge.status === "running" ? "good" : bridge.status === "stale" ? "warn" : "bad");
+          $("bridgeDot").className = "dot " + statusClass(bridge.status);
           $("bridgeRows").innerHTML = [
             row("Status", bridge.status),
             row("Endpoint", bridge.endpoint || "-"),
@@ -1061,7 +1396,27 @@ private enum AFMWorkbenchHTML {
           return `<button class="model-option ${active ? "active" : ""}" data-route="${route}" data-model="${id}" ${available ? "" : "disabled"}>${escapeHTML(route)}:${escapeHTML(id)}</button>`;
         }
 
+        function availableModels(status) {
+          return [
+            ...status.directModels.map((model) => ({ route: "direct", id: model.id, available: model.available })),
+            ...status.bridge.models.map((model) => ({ route: "bridge", id: model.id, available: model.available }))
+          ];
+        }
+
+        function ensureSelected(models) {
+          const selectedStillExists = models.some((model) =>
+            model.available && state.selected?.route === model.route && state.selected?.model === model.id
+          );
+          if (selectedStillExists) return;
+          const preferred = models.find((model) => model.available && model.route === "bridge" && model.id === "pcc")
+            || models.find((model) => model.available && model.route === "direct" && model.id === "system")
+            || models.find((model) => model.available);
+          state.selected = preferred ? { route: preferred.route, model: preferred.id } : null;
+        }
+
         function setModels(status) {
+          const models = availableModels(status);
+          ensureSelected(models);
           const direct = status.directModels.map((model) => modelButton("direct", model.id, model.available));
           const bridge = status.bridge.models.map((model) => modelButton("bridge", model.id, model.available));
           $("models").innerHTML = [...direct, ...bridge].join("");
@@ -1071,46 +1426,81 @@ private enum AFMWorkbenchHTML {
               render();
             });
           });
-          if (!state.selected) {
-            const preferred = status.bridge.models.find((model) => model.id === "pcc")
-              ? { route: "bridge", model: "pcc" }
-              : { route: "direct", model: "system" };
-            state.selected = preferred;
-            render();
-          }
         }
 
         function setRoute() {
-          if (!state.selected) return;
+          if (!state.selected) {
+            $("routeLabel").textContent = "No runnable model";
+            $("routeDot").className = "dot bad";
+            $("run").disabled = true;
+            return;
+          }
           $("routeLabel").textContent = `${state.selected.route}:${state.selected.model}`;
           $("routeDot").className = "dot " + (state.selected.route === "bridge" ? "good" : "warn");
+          $("run").disabled = false;
         }
 
         function renderSnippets() {
-          $("snippets").innerHTML = state.snippets.map((snippet) => {
-            const code = snippet.code.replaceAll("$AFM_ORIGIN", originToken());
-            return `<div class="snippet">
-              <div class="snippet-head"><h3>${escapeHTML(snippet.title)}</h3><button class="copy" data-copy="${escapeHTML(code)}">Copy</button></div>
-              <pre>${escapeHTML(code)}</pre>
-            </div>`;
+          if (!state.snippets.length) {
+            $("evidence").innerHTML = `<div class="empty">Snippets are not available yet.</div>`;
+            return;
+          }
+          if (state.activeSnippet >= state.snippets.length) state.activeSnippet = 0;
+          const selected = state.snippets[state.activeSnippet];
+          const code = selected.code.replaceAll("$AFM_ORIGIN", originToken());
+          const rows = state.snippets.map((snippet, index) => {
+            const active = index === state.activeSnippet ? "active" : "";
+            return `<button class="snippet-row ${active}" data-snippet="${index}" type="button">
+              <strong>${escapeHTML(snippet.title)}</strong>
+              <span>${escapeHTML(snippet.language)}</span>
+            </button>`;
           }).join("");
-          $("snippets").querySelectorAll("[data-copy]").forEach((button) => {
-            button.addEventListener("click", async () => {
-              await navigator.clipboard.writeText(button.dataset.copy);
-              button.textContent = "Copied";
-              setTimeout(() => { button.textContent = "Copy"; }, 900);
+          $("evidence").innerHTML = `
+            <div class="snippet-picker">${rows}</div>
+            <div class="code-block">
+              <div class="pane-head code-head">
+                <h3 class="pane-title">${escapeHTML(selected.title)}</h3>
+                <button id="copySnippet" class="quiet" type="button">Copy</button>
+              </div>
+              <pre>${escapeHTML(code)}</pre>
+            </div>
+          `;
+          $("evidence").querySelectorAll("[data-snippet]").forEach((button) => {
+            button.addEventListener("click", () => {
+              state.activeSnippet = Number(button.dataset.snippet);
+              renderEvidence();
             });
+          });
+          $("copySnippet").addEventListener("click", async () => {
+            await navigator.clipboard.writeText(code);
+            $("copySnippet").textContent = "Copied";
+            setTimeout(() => { $("copySnippet").textContent = "Copy"; }, 900);
           });
         }
 
         function renderTraces(traces) {
-          $("traces").innerHTML = traces.length ? traces.map((trace) => `
-            <button class="trace">
+          if (!traces.length) {
+            $("evidence").innerHTML = `<div class="empty">No traces yet. Run a prompt to create the first saved record.</div>`;
+            return;
+          }
+          $("evidence").innerHTML = `<div class="trace-list">${traces.map((trace) => `
+            <article class="trace">
               <h3>${escapeHTML(trace.route)}:${escapeHTML(trace.model)}</h3>
               <p>${escapeHTML(trace.prompt)}</p>
-              <small>${new Date(trace.createdAt).toLocaleTimeString()} · ${trace.durationMilliseconds} ms · ${trace.statusCode}</small>
-            </button>
-          `).join("") : `<div class="sub">No traces yet.</div>`;
+              <small>${new Date(trace.createdAt).toLocaleTimeString()} - ${trace.durationMilliseconds} ms - ${trace.statusCode}</small>
+            </article>
+          `).join("")}</div>`;
+        }
+
+        function renderEvidence() {
+          document.querySelectorAll("[data-panel]").forEach((button) => {
+            button.classList.toggle("active", button.dataset.panel === state.activePanel);
+          });
+          if (state.activePanel === "traces") {
+            renderTraces(state.traces);
+          } else {
+            renderSnippets();
+          }
         }
 
         function render() {
@@ -1119,6 +1509,7 @@ private enum AFMWorkbenchHTML {
           setRuntime(state.status);
           setModels(state.status);
           setRoute();
+          renderEvidence();
         }
 
         async function refresh() {
@@ -1129,15 +1520,25 @@ private enum AFMWorkbenchHTML {
           ]);
           state.status = status;
           state.snippets = snippets.snippets;
+          state.traces = traces.traces;
           render();
-          renderSnippets();
-          renderTraces(traces.traces);
+        }
+
+        function markResponseUpdated() {
+          const response = $("response");
+          response.classList.remove("updated");
+          void response.offsetWidth;
+          response.classList.add("updated");
         }
 
         async function runPrompt() {
           if (!state.selected) return;
           $("run").disabled = true;
+          $("copyResponse").disabled = true;
+          $("response").classList.remove("is-error");
           $("response").textContent = "Running on " + state.selected.route + ":" + state.selected.model + "...";
+          $("responseNote").textContent = "Request in progress.";
+          markResponseUpdated();
           try {
             const payload = await json("/api/workbench/chat", {
               method: "POST",
@@ -1148,13 +1549,24 @@ private enum AFMWorkbenchHTML {
                 prompt: $("prompt").value
               })
             });
-            $("response").textContent = payload.response || payload.responseJSON || "Done.";
+            state.lastResponse = payload.response || payload.responseJSON || "Done.";
+            $("response").textContent = state.lastResponse;
+            $("responseNote").textContent = "Saved";
             $("traceID").textContent = payload.traceID;
+            $("traceID").title = payload.traceID;
             $("duration").textContent = payload.durationMilliseconds + " ms";
+            $("duration").title = payload.durationMilliseconds + " ms";
             $("finish").textContent = payload.finishReason || "-";
+            $("finish").title = payload.finishReason || "-";
+            $("copyResponse").disabled = false;
+            state.activePanel = "traces";
+            markResponseUpdated();
             await refresh();
           } catch (error) {
             $("response").textContent = error.message;
+            $("response").classList.add("is-error");
+            $("responseNote").textContent = "Request failed.";
+            markResponseUpdated();
           } finally {
             $("run").disabled = false;
           }
@@ -1162,6 +1574,18 @@ private enum AFMWorkbenchHTML {
 
         $("refresh").addEventListener("click", refresh);
         $("run").addEventListener("click", runPrompt);
+        $("copyResponse").addEventListener("click", async () => {
+          if (!state.lastResponse) return;
+          await navigator.clipboard.writeText(state.lastResponse);
+          $("copyResponse").textContent = "Copied";
+          setTimeout(() => { $("copyResponse").textContent = "Copy response"; }, 900);
+        });
+        document.querySelectorAll("[data-panel]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.activePanel = button.dataset.panel;
+            renderEvidence();
+          });
+        });
         refresh().catch((error) => { $("response").textContent = error.message; });
       </script>
     </body>
