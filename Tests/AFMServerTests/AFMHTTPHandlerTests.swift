@@ -125,6 +125,7 @@ func bearerAuthenticationWithWorkbench() throws {
     let html = try #require(String(data: shell.body, encoding: .utf8))
     #expect(html.contains("afm.workbench.token"))
     #expect(html.contains("authorization"))
+    #expect(html.contains("async function workbenchChat"))
 
     let statusWithoutToken = try performRequest(path: "/api/workbench/status", router: router)
     #expect(statusWithoutToken.head.status == .unauthorized)

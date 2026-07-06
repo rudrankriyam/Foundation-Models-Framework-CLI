@@ -1344,6 +1344,16 @@ private enum AFMWorkbenchHTML {
           return payload;
         }
 
+        async function workbenchChat(path, options) {
+          const requestOptions = withAuthorization(options || {});
+          const response = await fetch(path, requestOptions);
+          const payload = await response.json();
+          if (!response.ok && payload?.command !== "workbench chat") {
+            throw new Error(payload?.error?.message || response.statusText);
+          }
+          return payload;
+        }
+
         function withAuthorization(options) {
           const token = workbenchToken();
           if (!token) return options;
@@ -1564,7 +1574,7 @@ private enum AFMWorkbenchHTML {
           $("responseNote").textContent = "Request in progress.";
           markResponseUpdated();
           try {
-            const payload = await json("/api/workbench/chat", {
+            const payload = await workbenchChat("/api/workbench/chat", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
