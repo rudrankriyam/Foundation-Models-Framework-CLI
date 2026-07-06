@@ -1352,7 +1352,7 @@ private enum AFMWorkbenchHTML {
           if (!response.ok && payload?.command !== "workbench chat") {
             throw new Error(payload?.error?.message || response.statusText);
           }
-          return payload;
+          return { ok: response.ok, payload };
         }
 
         function withAuthorization(options) {
@@ -1575,7 +1575,7 @@ private enum AFMWorkbenchHTML {
           $("responseNote").textContent = "Request in progress.";
           markResponseUpdated();
           try {
-            const payload = await workbenchChat("/api/workbench/chat", {
+            const result = await workbenchChat("/api/workbench/chat", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
@@ -1584,9 +1584,12 @@ private enum AFMWorkbenchHTML {
                 prompt: $("prompt").value
               })
             });
+            const payload = result.payload;
+            const savedFailure = !result.ok;
             state.lastResponse = payload.response || payload.responseJSON || "Done.";
             $("response").textContent = state.lastResponse;
-            $("responseNote").textContent = "Saved";
+            $("responseNote").textContent = savedFailure ? "Saved failure" : "Saved";
+            $("response").classList.toggle("is-error", savedFailure);
             $("traceID").textContent = payload.traceID;
             $("traceID").title = payload.traceID;
             $("duration").textContent = payload.durationMilliseconds + " ms";
@@ -1596,7 +1599,11 @@ private enum AFMWorkbenchHTML {
             $("copyResponse").disabled = false;
             state.activePanel = "traces";
             markResponseUpdated();
-            await refresh();
+            try {
+              await refresh();
+            } catch (refreshError) {
+              $("responseNote").textContent = savedFailure ? "Saved failure; refresh failed." : "Saved; refresh failed.";
+            }
           } catch (error) {
             $("response").textContent = error.message;
             $("response").classList.add("is-error");
