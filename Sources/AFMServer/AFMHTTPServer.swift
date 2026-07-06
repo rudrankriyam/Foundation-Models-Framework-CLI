@@ -48,7 +48,8 @@ public actor AFMHTTPServer {
         configuration: AFMServerConfiguration = .init(),
         catalog: any AFMModelCatalog,
         clock: any AFMServerClock = AFMSystemServerClock(),
-        generator: any AFMChatCompletionGenerating
+        generator: any AFMChatCompletionGenerating,
+        workbench: AFMWorkbenchConfiguration? = nil
     ) throws {
         let configuration = try configuration.validated()
         self.configuration = configuration
@@ -62,7 +63,8 @@ public actor AFMHTTPServer {
             configuration: configuration,
             catalog: catalog,
             clock: clock,
-            chatCompletions: chatCompletions
+            chatCompletions: chatCompletions,
+            workbench: workbench.map(AFMWorkbench.init)
         )
     }
 

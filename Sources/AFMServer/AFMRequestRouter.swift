@@ -4,6 +4,7 @@ import NIOHTTP1
 enum AFMRequestRoute {
     case immediate(AFMHTTPResponse)
     case chatCompletion(origin: String?)
+    case workbenchChat(origin: String?)
 }
 
 struct AFMRequestRouter: Sendable {
@@ -11,24 +12,27 @@ struct AFMRequestRouter: Sendable {
     private let catalog: any AFMModelCatalog
     private let clock: any AFMServerClock
     private let chatCompletions: AFMChatCompletionService?
+    private let workbench: AFMWorkbench?
 
     init(
         configuration: AFMServerConfiguration,
         catalog: any AFMModelCatalog,
         clock: any AFMServerClock,
-        chatCompletions: AFMChatCompletionService? = nil
+        chatCompletions: AFMChatCompletionService? = nil,
+        workbench: AFMWorkbench? = nil
     ) {
         self.configuration = configuration
         self.catalog = catalog
         self.clock = clock
         self.chatCompletions = chatCompletions
+        self.workbench = workbench
     }
 
     func response(for request: HTTPRequestHead) -> AFMHTTPResponse {
         switch route(for: request) {
         case .immediate(let response):
             return response
-        case .chatCompletion:
+        case .chatCompletion, .workbenchChat:
             return .apiError(
                 status: .internalServerError,
                 message: "This route requires asynchronous request handling.",
@@ -75,6 +79,16 @@ struct AFMRequestRouter: Sendable {
         switch path {
         case "/health":
             route = .immediate(responseForKnownRoute(request, body: healthResponse))
+        case "/", "/workbench", "/index.html":
+            route = routeWorkbenchIndex(request)
+        case "/api/workbench/status":
+            route = routeWorkbenchStatus(request)
+        case "/api/workbench/snippets":
+            route = routeWorkbenchSnippets(request)
+        case "/api/workbench/traces":
+            route = routeWorkbenchTraces(request)
+        case "/api/workbench/chat":
+            route = routeWorkbenchChat(request, origin: originResult.origin)
         case "/v1/models":
             route = .immediate(responseForKnownRoute(request, body: modelsResponse))
         case "/v1/chat/completions":
@@ -112,8 +126,37 @@ struct AFMRequestRouter: Sendable {
         }
     }
 
+    func writeWorkbenchChatResponse(
+        body: Data,
+        origin: String?,
+        emitting emission: @escaping @Sendable (AFMHTTPEmission) async throws -> Void
+    ) async throws {
+        guard let workbench else {
+            try await emission(.fixed(
+                AFMHTTPResponse.apiError(
+                    status: .notFound,
+                    message: "The workbench is not enabled for this server.",
+                    code: "workbench_not_enabled"
+                ).addingOrigin(origin)
+            ))
+            return
+        }
+        try await workbench.writeChatResponse(
+            body: body,
+            chatCompletions: chatCompletions
+        ) { response in
+            try await emission(response.addingOrigin(origin))
+        }
+    }
+
     func requiresJSONBody(_ request: HTTPRequestHead) -> Bool {
-        request.method == .POST && normalizedPath(request.uri) == "/v1/chat/completions"
+        guard request.method == .POST else { return false }
+        switch normalizedPath(request.uri) {
+        case "/v1/chat/completions", "/api/workbench/chat":
+            return true
+        default:
+            return false
+        }
     }
 
     private func routeChatCompletion(_ request: HTTPRequestHead, origin: String?) -> AFMRequestRoute {
@@ -130,6 +173,57 @@ struct AFMRequestRouter: Sendable {
             )
         }
         return .chatCompletion(origin: origin)
+    }
+
+    private func routeWorkbenchIndex(_ request: HTTPRequestHead) -> AFMRequestRoute {
+        guard let workbench else { return workbenchDisabledResponse() }
+        guard request.method == .GET else { return methodNotAllowedResponse("GET") }
+        return .immediate(workbench.indexResponse())
+    }
+
+    private func routeWorkbenchStatus(_ request: HTTPRequestHead) -> AFMRequestRoute {
+        guard let workbench else { return workbenchDisabledResponse() }
+        guard request.method == .GET else { return methodNotAllowedResponse("GET") }
+        return .immediate(workbench.statusResponse(catalog: catalog))
+    }
+
+    private func routeWorkbenchSnippets(_ request: HTTPRequestHead) -> AFMRequestRoute {
+        guard let workbench else { return workbenchDisabledResponse() }
+        guard request.method == .GET else { return methodNotAllowedResponse("GET") }
+        return .immediate(workbench.snippetsResponse())
+    }
+
+    private func routeWorkbenchTraces(_ request: HTTPRequestHead) -> AFMRequestRoute {
+        guard let workbench else { return workbenchDisabledResponse() }
+        guard request.method == .GET else { return methodNotAllowedResponse("GET") }
+        return .immediate(workbench.tracesResponse())
+    }
+
+    private func routeWorkbenchChat(_ request: HTTPRequestHead, origin: String?) -> AFMRequestRoute {
+        guard workbench != nil else { return workbenchDisabledResponse() }
+        guard request.method == .POST else { return methodNotAllowedResponse("POST") }
+        return .workbenchChat(origin: origin)
+    }
+
+    private func workbenchDisabledResponse() -> AFMRequestRoute {
+        .immediate(.apiError(
+            status: .notFound,
+            message: "The workbench is not enabled for this server.",
+            code: "workbench_not_enabled"
+        ))
+    }
+
+    private func methodNotAllowedResponse(_ method: String) -> AFMRequestRoute {
+        var headers = HTTPHeaders()
+        headers.add(name: "allow", value: method)
+        return .immediate(
+            .apiError(
+                status: .methodNotAllowed,
+                message: "This endpoint only accepts \(method) requests.",
+                code: "method_not_allowed",
+                headers: headers
+            )
+        )
     }
 
     private func responseForKnownRoute<T: Encodable>(
@@ -171,10 +265,33 @@ struct AFMRequestRouter: Sendable {
     private func validateOrigin(_ headers: HTTPHeaders) -> (isAllowed: Bool, origin: String?) {
         let origins = headers["origin"]
         guard !origins.isEmpty else { return (true, nil) }
-        guard origins.count == 1, configuration.security.allowedOrigins.contains(origins[0]) else {
+        guard origins.count == 1 else {
             return (false, nil)
         }
-        return (true, origins[0])
+        let origin = origins[0]
+        guard configuration.security.allowedOrigins.contains(origin)
+            || isSameOrigin(origin, headers: headers) else {
+            return (false, nil)
+        }
+        return (true, origin)
+    }
+
+    private func isSameOrigin(_ origin: String, headers: HTTPHeaders) -> Bool {
+        guard let host = headers.first(name: "host")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty else {
+            return false
+        }
+        return normalizedOrigin(origin) == normalizedOrigin("http://\(host)")
+    }
+
+    private func normalizedOrigin(_ origin: String) -> String? {
+        guard let components = URLComponents(string: origin),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return nil
+        }
+        return "\(scheme)://\(host)\(components.port.map { ":\($0)" } ?? "")"
     }
 
     private func validatesAuthorization(_ headers: HTTPHeaders) -> Bool {
@@ -209,7 +326,7 @@ private extension AFMRequestRoute {
         switch self {
         case .immediate(let response):
             return .immediate(response.addingOrigin(origin))
-        case .chatCompletion:
+        case .chatCompletion, .workbenchChat:
             return self
         }
     }

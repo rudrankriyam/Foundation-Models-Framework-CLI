@@ -25,6 +25,12 @@ struct AFMHTTPResponse {
         return .init(status: status, headers: headers, body: data)
     }
 
+    static func html(_ body: String) -> Self {
+        var headers = HTTPHeaders()
+        headers.add(name: "content-type", value: "text/html; charset=utf-8")
+        return .init(status: .ok, headers: headers, body: Data(body.utf8))
+    }
+
     static func apiError(
         status: HTTPResponseStatus,
         message: String,

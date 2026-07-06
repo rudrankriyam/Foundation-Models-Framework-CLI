@@ -6,7 +6,7 @@ import FoundationModelsKit
 struct ServeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "serve",
-        abstract: "Serve local Foundation Models-compatible HTTP endpoints."
+        abstract: "Serve local chat-compatible HTTP endpoints and an optional browser workbench."
     )
 
     @OptionGroup var options: GlobalCommandOptions
@@ -22,6 +22,12 @@ struct ServeCommand: AsyncParsableCommand {
 
     @Flag(name: .customLong("allow-network"), help: "Allow a non-loopback TCP binding.")
     var allowNetwork = false
+
+    @Flag(name: .long, help: "Serve the browser workbench alongside the HTTP API.")
+    var ui = false
+
+    @Option(name: .customLong("trace-dir"), help: "Directory for browser workbench trace JSON.")
+    var traceDirectory: String?
 
     @Option(
         name: .customLong("token"),
@@ -53,7 +59,10 @@ struct ServeCommand: AsyncParsableCommand {
         let serverConfiguration = try resolvedServerConfiguration()
 
         if options.dryRun {
-            let payload = ServeDryRunPayload(configuration: serverConfiguration)
+            let payload = ServeDryRunPayload(
+                configuration: serverConfiguration,
+                workbench: resolvedWorkbenchConfiguration()
+            )
             try CLIOutput.emit(
                 payload: payload,
                 human: "[dry-run] afm serve \(payload.endpoint)",
@@ -69,7 +78,8 @@ struct ServeCommand: AsyncParsableCommand {
         let server = try AFMHTTPServer(
             configuration: serverConfiguration,
             catalog: catalog,
-            generator: AFMFoundationModelsChatGenerator()
+            generator: AFMFoundationModelsChatGenerator(),
+            workbench: resolvedWorkbenchConfiguration()
         )
         let terminationSignal = AFMTerminationSignal()
 
@@ -106,8 +116,15 @@ struct ServeCommand: AsyncParsableCommand {
     }
 
     private func resolvedServerConfiguration() throws -> AFMServerConfiguration {
+        guard ui || traceDirectory == nil else {
+            throw ValidationError("--trace-dir requires --ui")
+        }
+
         let endpoint: AFMServerEndpoint
         if let socket {
+            guard !ui else {
+                throw ValidationError("--ui requires a TCP endpoint")
+            }
             guard host == nil, port == nil else {
                 throw ValidationError("--socket cannot be combined with --host or --port")
             }
@@ -149,8 +166,15 @@ struct ServeCommand: AsyncParsableCommand {
         configuration: AFMServerConfiguration,
         output: CLIOutputOptions
     ) throws {
-        let payload = ServeStartedPayload(address: address, configuration: configuration)
+        let payload = ServeStartedPayload(
+            address: address,
+            configuration: configuration,
+            workbench: resolvedWorkbenchConfiguration()
+        )
         var humanLines = ["afm serve listening on \(payload.endpoint)"]
+        if ui {
+            humanLines.append("Workbench: \(payload.endpoint)")
+        }
         if configuration.security.bearerToken != nil {
             humanLines.append("Bearer authentication is enabled.")
         }
@@ -160,24 +184,40 @@ struct ServeCommand: AsyncParsableCommand {
             fputs("Warning: requests travel over plaintext HTTP on the local network.\n", stderr)
         }
     }
+
+    private func resolvedWorkbenchConfiguration() -> AFMWorkbenchConfiguration? {
+        guard ui else { return nil }
+        return AFMWorkbenchConfiguration(
+            traceDirectory: expandedPath(traceDirectory ?? AFMWorkbenchConfiguration.defaultTraceDirectory)
+        )
+    }
+
+    private func expandedPath(_ path: String) -> String {
+        guard path.hasPrefix("~/") else { return path }
+        return (NSHomeDirectory() as NSString).appendingPathComponent(String(path.dropFirst(2)))
+    }
 }
 
 private struct ServeDryRunPayload: Encodable {
     let status = "dry_run"
     let command = "serve"
     let endpoint: String
+    let workbenchEnabled: Bool
+    let traceDirectory: String?
     let authenticationEnabled: Bool
     let allowedOrigins: [String]
     let maximumConcurrentGenerations: Int
     let modelTimeoutSeconds: Double
 
-    init(configuration: AFMServerConfiguration) {
+    init(configuration: AFMServerConfiguration, workbench: AFMWorkbenchConfiguration?) {
         switch configuration.endpoint {
         case .tcp(let host, let port):
             endpoint = AFMServerBoundAddress.tcp(host: host, port: port).description
         case .unixSocket(let path):
             endpoint = "unix://\(path)"
         }
+        workbenchEnabled = workbench != nil
+        traceDirectory = workbench?.traceDirectory
         authenticationEnabled = configuration.security.bearerToken != nil
         allowedOrigins = configuration.security.allowedOrigins.sorted()
         maximumConcurrentGenerations = configuration.generation.maximumConcurrentGenerations
@@ -190,13 +230,19 @@ private struct ServeStartedPayload: Encodable {
     let command = "serve"
     let endpoint: String
     let transport: String
+    let workbenchEnabled: Bool
+    let traceDirectory: String?
     let authenticationEnabled: Bool
     let allowedOrigins: [String]
     let networkExposed: Bool
     let maximumConcurrentGenerations: Int
     let modelTimeoutSeconds: Double
 
-    init(address: AFMServerBoundAddress, configuration: AFMServerConfiguration) {
+    init(
+        address: AFMServerBoundAddress,
+        configuration: AFMServerConfiguration,
+        workbench: AFMWorkbenchConfiguration?
+    ) {
         switch address {
         case .tcp(let host, let port):
             let renderedHost = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host
@@ -206,6 +252,8 @@ private struct ServeStartedPayload: Encodable {
             endpoint = "unix://\(path)"
             transport = "unix"
         }
+        workbenchEnabled = workbench != nil
+        traceDirectory = workbench?.traceDirectory
         authenticationEnabled = configuration.security.bearerToken != nil
         allowedOrigins = configuration.security.allowedOrigins.sorted()
         maximumConcurrentGenerations = configuration.generation.maximumConcurrentGenerations

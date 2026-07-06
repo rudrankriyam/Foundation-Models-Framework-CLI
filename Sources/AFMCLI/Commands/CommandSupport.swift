@@ -375,6 +375,9 @@ func currentSupportedLanguageDisplayName(from languages: [FoundationModelSupport
 
 enum HelpText {
     static let root = """
+    Use afm directly for on-device Foundation Models workflows. Use afm bridge
+    when an agent or script needs a signed Foundation Lab host for PCC.
+
     RUNTIME COMMANDS
       available     Inspect system and PCC readiness for the current process.
       quota-usage   Inspect PCC quota state without inventing numeric usage.
@@ -402,10 +405,10 @@ enum HelpText {
       feedback     Export Foundation Models feedback attachments.
 
     SERVER COMMANDS
-      serve        Serve local HTTP endpoints over TCP or a Unix-domain socket.
+      serve        Serve local chat-compatible endpoints and an optional browser workbench.
 
     AGENT BRIDGE COMMANDS
-      bridge       Use a signed Foundation Lab host from agents and automation.
+      bridge       Connect agents to a signed Foundation Lab host for system and PCC.
 
     QUICK START
       afm available
@@ -429,9 +432,11 @@ enum HelpText {
       afm transcript export --message "Hello" --message "Summarize this conversation." --file transcript.json
       afm feedback export --prompt "What is the capital of France?" --sentiment positive --file feedback.json
       afm serve
+      afm serve --ui
       afm bridge prepare
       afm bridge ensure
       afm bridge status
+      afm bridge models
       afm bridge chat --model pcc --prompt "Summarize this repository."
     """
 

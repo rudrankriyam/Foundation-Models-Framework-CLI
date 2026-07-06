@@ -150,17 +150,36 @@ final class AFMHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             resetRequestState()
             send(response, version: head.version, close: shouldClose, context: context)
         case .chatCompletion(let origin):
-            startChatCompletion(head: head, body: requestBody, origin: origin, context: context)
+            startAsyncResponse(
+                head: head,
+                fallbackMessage: "The chat completion request failed.",
+                context: context
+            ) { router, body, emission in
+                try await router.writeChatCompletionResponse(body: body, origin: origin, emitting: emission)
+            }
+        case .workbenchChat(let origin):
+            startAsyncResponse(
+                head: head,
+                fallbackMessage: "The workbench request failed.",
+                context: context
+            ) { router, body, emission in
+                try await router.writeWorkbenchChatResponse(body: body, origin: origin, emitting: emission)
+            }
         }
     }
 
-    private func startChatCompletion(
+    private func startAsyncResponse(
         head: HTTPRequestHead,
-        body: Data,
-        origin: String?,
-        context: ChannelHandlerContext
+        fallbackMessage: String,
+        context: ChannelHandlerContext,
+        operation: @escaping @Sendable (
+            AFMRequestRouter,
+            Data,
+            @escaping @Sendable (AFMHTTPEmission) async throws -> Void
+        ) async throws -> Void
     ) {
         let router = router
+        let body = requestBody
         responseWasSent = true
         let writer = AFMAsyncHTTPResponseWriter(
             channel: context.channel,
@@ -171,7 +190,7 @@ final class AFMHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         let eventLoop = context.eventLoop
         generationTask = Task { [weak self] in
             do {
-                try await router.writeChatCompletionResponse(body: body, origin: origin) { emission in
+                try await operation(router, body) { emission in
                     try await writer.write(emission)
                 }
             } catch is CancellationError {
@@ -182,7 +201,7 @@ final class AFMHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                         .fixed(
                             .apiError(
                                 status: .internalServerError,
-                                message: "The chat completion request failed.",
+                                message: fallbackMessage,
                                 code: "internal_error",
                                 type: "server_error"
                             )
@@ -256,7 +275,9 @@ private extension AFMHTTPHandler {
             isClosingResponse = true
         }
         var headers = response.headers
-        headers.replaceOrAdd(name: "content-type", value: "application/json")
+        if headers.first(name: "content-type") == nil {
+            headers.add(name: "content-type", value: "application/json")
+        }
         headers.replaceOrAdd(name: "content-length", value: String(response.body.count))
         headers.replaceOrAdd(name: "cache-control", value: "no-store")
         headers.replaceOrAdd(name: "x-content-type-options", value: "nosniff")
